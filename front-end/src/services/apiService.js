@@ -1,4 +1,4 @@
-// src/services/apiService.js
+// src/services/apiService.js - Version complète mise à jour
 import axios from 'axios';
 import { toast } from 'react-toastify';
 
@@ -116,7 +116,7 @@ class ApiService {
     }
   }
 
-  // Méthodes HTTP
+  // Méthodes HTTP de base
   async get(url, config = {}) {
     return this.api.get(url, config);
   }
@@ -137,9 +137,10 @@ class ApiService {
     return this.api.delete(url, config);
   }
 
-  // Méthodes spécifiques pour l'application
+  // ===================================
+  // AUTHENTIFICATION
+  // ===================================
 
-  // === AUTHENTIFICATION ===
   async login(credentials) {
     return this.post('/auth/login', credentials);
   }
@@ -160,7 +161,14 @@ class ApiService {
     return this.put('/auth/profile', profileData);
   }
 
-  // === DASHBOARD ===
+  async refreshToken() {
+    return this.post('/auth/refresh');
+  }
+
+  // ===================================
+  // DASHBOARD
+  // ===================================
+
   async getDashboard() {
     return this.get('/dashboard');
   }
@@ -169,11 +177,34 @@ class ApiService {
     return this.get('/dashboard/statistiques-rapides');
   }
 
+  async getStatistiquesGenerales() {
+    return this.get('/dashboard/statistiques-generales');
+  }
+
   async getAlertes() {
     return this.get('/dashboard/alertes');
   }
 
-  // === MACHINES ===
+  async getAlertesImportantes() {
+    return this.get('/dashboard/alertes-importantes');
+  }
+
+  async getActivitesRecentes() {
+    return this.get('/dashboard/activites');
+  }
+
+  async getGraphiqueEvolution() {
+    return this.get('/dashboard/evolution');
+  }
+
+  async getResume() {
+    return this.get('/dashboard/resume');
+  }
+
+  // ===================================
+  // MACHINES
+  // ===================================
+
   async getMachines(params = {}) {
     return this.get('/machines', { params });
   }
@@ -202,7 +233,26 @@ class ApiService {
     return this.patch(`/machines/${id}/statut`, { statut });
   }
 
-  // === COMPOSANTS ===
+  async updateMachineMaintenance(id, data) {
+    return this.patch(`/machines/${id}/maintenance`, data);
+  }
+
+  async getMachineComposants(id) {
+    return this.get(`/machines/${id}/composants`);
+  }
+
+  async getMachineDemandes(id) {
+    return this.get(`/machines/${id}/demandes`);
+  }
+
+  async getStatistiquesMachines() {
+    return this.get('/machines/statistiques');
+  }
+
+  // ===================================
+  // COMPOSANTS
+  // ===================================
+
   async getComposants(params = {}) {
     return this.get('/composants', { params });
   }
@@ -227,11 +277,26 @@ class ApiService {
     return this.get('/composants/defaillants');
   }
 
+  async getComposantsAInspecter() {
+    return this.get('/composants/a-inspecter');
+  }
+
   async updateComposantStatut(id, data) {
     return this.patch(`/composants/${id}/statut`, data);
   }
 
-  // === DEMANDES ===
+  async updateComposantInspection(id, data) {
+    return this.patch(`/composants/${id}/inspection`, data);
+  }
+
+  async getStatistiquesComposants() {
+    return this.get('/composants/statistiques');
+  }
+
+  // ===================================
+  // DEMANDES
+  // ===================================
+
   async getDemandes(params = {}) {
     return this.get('/demandes', { params });
   }
@@ -260,11 +325,33 @@ class ApiService {
     return this.patch(`/demandes/${id}/refuser`, { commentaire_admin: commentaire });
   }
 
+  async changerStatutDemande(id, statut, commentaire) {
+    return this.patch(`/demandes/${id}/statut`, { 
+      statut, 
+      commentaire_admin: commentaire 
+    });
+  }
+
   async getDemandesEnAttente() {
     return this.get('/demandes/en-attente');
   }
 
-  // === TYPES ===
+  async getDemandesUrgentes() {
+    return this.get('/demandes/urgentes');
+  }
+
+  async getMesDemandesRecentes() {
+    return this.get('/demandes/mes-demandes-recentes');
+  }
+
+  async getStatistiquesDemandes() {
+    return this.get('/demandes/statistiques');
+  }
+
+  // ===================================
+  // TYPES
+  // ===================================
+
   async getTypes(params = {}) {
     return this.get('/types', { params });
   }
@@ -289,17 +376,44 @@ class ApiService {
     return this.get('/types/actifs');
   }
 
-  // === NOTIFICATIONS ===
+  async toggleTypeActif(id) {
+    return this.patch(`/types/${id}/toggle-actif`);
+  }
+
+  async getStatistiquesTypes() {
+    return this.get('/types/statistiques');
+  }
+
+  // ===================================
+  // NOTIFICATIONS
+  // ===================================
+
   async getNotifications(params = {}) {
     return this.get('/notifications', { params });
+  }
+
+  async getNotification(id) {
+    return this.get(`/notifications/${id}`);
   }
 
   async getNotificationsNonLues() {
     return this.get('/notifications/non-lues');
   }
 
+  async getNotificationsRecentes() {
+    return this.get('/notifications/recentes');
+  }
+
+  async getNotificationsCount() {
+    return this.get('/notifications/count');
+  }
+
   async marquerNotificationLue(id) {
     return this.patch(`/notifications/${id}/lue`);
+  }
+
+  async marquerNotificationNonLue(id) {
+    return this.patch(`/notifications/${id}/non-lue`);
   }
 
   async marquerToutesNotificationsLues() {
@@ -310,11 +424,476 @@ class ApiService {
     return this.delete(`/notifications/${id}`);
   }
 
-  // === HEALTH CHECK ===
+  async supprimerNotificationsLues() {
+    return this.delete('/notifications/lues/supprimer');
+  }
+
+  async creerNotification(data) {
+    return this.post('/notifications', data);
+  }
+
+  async diffuserNotification(data) {
+    return this.post('/notifications/diffuser', data);
+  }
+
+  // ===================================
+  // UTILISATEURS
+  // ===================================
+
+  async getUtilisateurs(params = {}) {
+    return this.get('/users', { params });
+  }
+
+  async getUtilisateur(id) {
+    return this.get(`/users/${id}`);
+  }
+
+  async updateUser(id, data) {
+    return this.put(`/users/${id}`, data);
+  }
+
+  async deleteUser(id) {
+    return this.delete(`/users/${id}`);
+  }
+
+  async toggleUserActif(id) {
+    return this.patch(`/users/${id}/toggle-active`);
+  }
+
+  // ===================================
+  // RAPPORTS
+  // ===================================
+
+  async getRapportMachines(params = {}) {
+    return this.get('/rapports/machines', { params });
+  }
+
+  async getRapportDemandes(params = {}) {
+    return this.get('/rapports/demandes', { params });
+  }
+
+  async getRapportComposants(params = {}) {
+    return this.get('/rapports/composants', { params });
+  }
+
+  // ===================================
+  // RECHERCHE
+  // ===================================
+
+  async searchGlobal(query, filters = {}) {
+    return this.post('/search', { query, filters });
+  }
+
+  async searchMachines(query, filters = {}) {
+    return this.post('/search/machines', { query, filters });
+  }
+
+  async searchComposants(query, filters = {}) {
+    return this.post('/search/composants', { query, filters });
+  }
+
+  async searchDemandes(query, filters = {}) {
+    return this.post('/search/demandes', { query, filters });
+  }
+
+  // ===================================
+  // EXPORTATION / IMPORTATION
+  // ===================================
+
+  async exportData(type, format = 'xlsx', params = {}) {
+    const url = `/export/${type}?format=${format}`;
+    return this.get(url, { params, responseType: 'blob' });
+  }
+
+  async importData(type, file, options = {}) {
+    const formData = new FormData();
+    formData.append('file', file);
+    Object.keys(options).forEach(key => {
+      formData.append(key, options[key]);
+    });
+    
+    return this.uploadFile(`/import/${type}`, formData);
+  }
+
+  async backupData() {
+    return this.post('/backup');
+  }
+
+  async restoreData(backupFile) {
+    const formData = new FormData();
+    formData.append('backup', backupFile);
+    return this.uploadFile('/restore', formData);
+  }
+
+  // ===================================
+  // SYSTEME ET CONFIGURATION
+  // ===================================
+
+  async getSystemHealth() {
+    return this.get('/health');
+  }
+
+  async getSystemMetrics() {
+    return this.get('/metrics');
+  }
+
+  async getSystemInfo() {
+    return this.get('/system-info');
+  }
+
+  async getSystemSettings() {
+    return this.get('/settings');
+  }
+
+  async updateSystemSettings(settings) {
+    return this.put('/settings', settings);
+  }
+
+  async resetSystemSettings() {
+    return this.post('/settings/reset');
+  }
+
+  // ===================================
+  // LOGS ET AUDIT
+  // ===================================
+
+  async getLogs(params = {}) {
+    return this.get('/logs', { params });
+  }
+
+  async getAuditTrail(params = {}) {
+    return this.get('/audit', { params });
+  }
+
+  async clearLogs() {
+    return this.delete('/logs');
+  }
+
+  // ===================================
+  // SESSIONS
+  // ===================================
+
+  async getActiveSessions() {
+    return this.get('/sessions');
+  }
+
+  async revokeSession(sessionId) {
+    return this.delete(`/sessions/${sessionId}`);
+  }
+
+  async revokeAllSessions() {
+    return this.delete('/sessions/all');
+  }
+
+  // ===================================
+  // PREFERENCES UTILISATEUR
+  // ===================================
+
+  async getUserPreferences() {
+    return this.get('/preferences');
+  }
+
+  async updateUserPreferences(preferences) {
+    return this.put('/preferences', preferences);
+  }
+
+  async resetUserPreferences() {
+    return this.delete('/preferences');
+  }
+
+  // ===================================
+  // FAVORIS
+  // ===================================
+
+  async getFavorites() {
+    return this.get('/favorites');
+  }
+
+  async addToFavorites(type, id) {
+    return this.post('/favorites', { type, id });
+  }
+
+  async removeFromFavorites(type, id) {
+    return this.delete(`/favorites/${type}/${id}`);
+  }
+
+  // ===================================
+  // FEEDBACK
+  // ===================================
+
+  async submitFeedback(feedback) {
+    return this.post('/feedback', feedback);
+  }
+
+  async getFeedbacks(params = {}) {
+    return this.get('/feedback', { params });
+  }
+
+  // ===================================
+  // CALENDRIER ET PLANIFICATION
+  // ===================================
+
+  async getCalendarEvents(params = {}) {
+    return this.get('/calendar', { params });
+  }
+
+  async createCalendarEvent(event) {
+    return this.post('/calendar', event);
+  }
+
+  async updateCalendarEvent(id, event) {
+    return this.put(`/calendar/${id}`, event);
+  }
+
+  async deleteCalendarEvent(id) {
+    return this.delete(`/calendar/${id}`);
+  }
+
+  // ===================================
+  // TACHES RECURRENTES
+  // ===================================
+
+  async getRecurringTasks(params = {}) {
+    return this.get('/tasks/recurring', { params });
+  }
+
+  async createRecurringTask(task) {
+    return this.post('/tasks/recurring', task);
+  }
+
+  async updateRecurringTask(id, task) {
+    return this.put(`/tasks/recurring/${id}`, task);
+  }
+
+  async deleteRecurringTask(id) {
+    return this.delete(`/tasks/recurring/${id}`);
+  }
+
+  // ===================================
+  // WORKFLOWS
+  // ===================================
+
+  async getWorkflows(params = {}) {
+    return this.get('/workflows', { params });
+  }
+
+  async executeWorkflow(id, input = {}) {
+    return this.post(`/workflows/${id}/execute`, input);
+  }
+
+  async getWorkflowHistory(id, params = {}) {
+    return this.get(`/workflows/${id}/history`, { params });
+  }
+
+  // ===================================
+  // TEMPLATES
+  // ===================================
+
+  async getTemplates(type, params = {}) {
+    return this.get(`/templates/${type}`, { params });
+  }
+
+  async createTemplate(type, template) {
+    return this.post(`/templates/${type}`, template);
+  }
+
+  async useTemplate(type, id, data = {}) {
+    return this.post(`/templates/${type}/${id}/use`, data);
+  }
+
+  // ===================================
+  // KPIS ET METRIQUES
+  // ===================================
+
+  async getKPIs(params = {}) {
+    return this.get('/kpis', { params });
+  }
+
+  async calculateKPI(kpiId, params = {}) {
+    return this.post(`/kpis/${kpiId}/calculate`, params);
+  }
+
+  async getKPIHistory(kpiId, params = {}) {
+    return this.get(`/kpis/${kpiId}/history`, { params });
+  }
+
+  // ===================================
+  // ALERTES ET SEUILS
+  // ===================================
+
+  async getAlertRules(params = {}) {
+    return this.get('/alerts/rules', { params });
+  }
+
+  async createAlertRule(rule) {
+    return this.post('/alerts/rules', rule);
+  }
+
+  async updateAlertRule(id, rule) {
+    return this.put(`/alerts/rules/${id}`, rule);
+  }
+
+  async deleteAlertRule(id) {
+    return this.delete(`/alerts/rules/${id}`);
+  }
+
+  async getActiveAlerts(params = {}) {
+    return this.get('/alerts/active', { params });
+  }
+
+  async acknowledgeAlert(id) {
+    return this.patch(`/alerts/${id}/acknowledge`);
+  }
+
+  async resolveAlert(id, resolution) {
+    return this.patch(`/alerts/${id}/resolve`, { resolution });
+  }
+
+  // ===================================
+  // MAINTENANCE PREDICTIVE
+  // ===================================
+
+  async getPredictiveAnalysis(machineId, params = {}) {
+    return this.get(`/predictive/machines/${machineId}`, { params });
+  }
+
+  async getMaintenanceRecommendations(params = {}) {
+    return this.get('/predictive/recommendations', { params });
+  }
+
+  async getFailurePredictions(params = {}) {
+    return this.get('/predictive/failures', { params });
+  }
+
+  // ===================================
+  // OPTIMISATION
+  // ===================================
+
+  async getResourceOptimization(params = {}) {
+    return this.get('/optimization/resources', { params });
+  }
+
+  async getMaintenanceOptimization(params = {}) {
+    return this.get('/optimization/maintenance', { params });
+  }
+
+  async getInventoryOptimization(params = {}) {
+    return this.get('/optimization/inventory', { params });
+  }
+
+  // ===================================
+  // INTEGRATIONS EXTERNES
+  // ===================================
+
+  async syncWithExternalSystem(systemType, data) {
+    return this.post(`/integrations/${systemType}/sync`, data);
+  }
+
+  async getIntegrationStatus(systemType) {
+    return this.get(`/integrations/${systemType}/status`);
+  }
+
+  async testIntegrationConnection(systemType, config) {
+    return this.post(`/integrations/${systemType}/test`, config);
+  }
+
+  // ===================================
+  // NOTIFICATIONS PUSH
+  // ===================================
+
+  async subscribeToPushNotifications(subscription) {
+    return this.post('/push/subscribe', subscription);
+  }
+
+  async unsubscribeFromPushNotifications() {
+    return this.post('/push/unsubscribe');
+  }
+
+  // ===================================
+  // GEOLOCALISATION
+  // ===================================
+
+  async updateLocation(coordinates) {
+    return this.patch('/location', coordinates);
+  }
+
+  async getNearbyMachines(coordinates, radius = 1000) {
+    return this.get('/machines/nearby', { 
+      params: { 
+        lat: coordinates.latitude, 
+        lng: coordinates.longitude, 
+        radius 
+      } 
+    });
+  }
+
+  // ===================================
+  // METHODES UTILITAIRES
+  // ===================================
+
+  // Méthode pour formater les erreurs de validation
+  formatValidationErrors(errors) {
+    const formattedErrors = {};
+    Object.keys(errors).forEach(field => {
+      if (Array.isArray(errors[field])) {
+        formattedErrors[field] = errors[field];
+      } else {
+        formattedErrors[field] = [errors[field]];
+      }
+    });
+    return formattedErrors;
+  }
+
+  // Méthode pour gérer les uploads de fichiers
+  async uploadFile(url, formData, config = {}) {
+    const uploadConfig = {
+      ...config,
+      headers: {
+        'Content-Type': 'multipart/form-data',
+        ...config.headers
+      }
+    };
+    return this.post(url, formData, uploadConfig);
+  }
+
+  // Méthode pour télécharger des fichiers
+  async downloadFile(url, filename) {
+    try {
+      const response = await this.api.get(url, {
+        responseType: 'blob'
+      });
+      
+      // Créer un lien de téléchargement
+      const blob = new Blob([response.data]);
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.setAttribute('download', filename);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(downloadUrl);
+      
+      return response;
+    } catch (error) {
+      console.error('Erreur lors du téléchargement:', error);
+      throw error;
+    }
+  }
+
+  // ===================================
+  // HEALTH CHECK
+  // ===================================
+
   async healthCheck() {
     return this.get('/health');
   }
+
+  async testConnection() {
+    return this.get('/test');
+  }
 }
 
+// Créer et exporter une instance unique
 const apiService = new ApiService();
 export default apiService;
