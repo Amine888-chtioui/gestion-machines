@@ -1,38 +1,32 @@
-// src/pages/Demandes.js - Version corrigée
+// src/pages/Demandes.js
 import React, { useState, useEffect } from 'react';
-import { 
-  Card, Table, Button, Badge, Modal, Form, Row, Col, 
-  InputGroup, Dropdown, Spinner, Alert, Pagination 
-} from 'react-bootstrap';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Card, Row, Col, Table, Badge, Button, Modal, Form, Alert, Spinner, Dropdown, Pagination } from 'react-bootstrap';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import apiService from '../services/apiService';
 import { toast } from 'react-toastify';
 
 const Demandes = () => {
   const { user } = useAuth();
-  const [searchParams] = useSearchParams();
   const [demandes, setDemandes] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [showModal, setShowModal] = useState(false);
   const [machines, setMachines] = useState([]);
   const [composants, setComposants] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState('');
   const [filters, setFilters] = useState({
-    statut: searchParams.get('statut') || '',
+    search: '',
+    statut: '',
     type_demande: '',
     priorite: '',
-    machine_id: '',
-    user_id: ''
+    machine_id: ''
   });
-  const [sortBy, setSortBy] = useState('created_at');
-  const [sortOrder, setSortOrder] = useState('desc');
-  const [currentPage, setCurrentPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
-  const [showCreateModal, setShowCreateModal] = useState(false);
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [showTraiterModal, setShowTraiterModal] = useState(false);
-  const [selectedDemande, setSelectedDemande] = useState(null);
-  const [actionType, setActionType] = useState(''); // 'accepter' ou 'refuser'
+  const [pagination, setPagination] = useState({
+    currentPage: 1,
+    totalPages: 1,
+    total: 0,
+    perPage: 15
+  });
   const [formData, setFormData] = useState({
     machine_id: '',
     composant_id: '',
@@ -41,54 +35,63 @@ const Demandes = () => {
     titre: '',
     description: '',
     justification: '',
-    quantite_demandee: '',
+    quantite_demandee: 1,
     budget_estime: '',
     date_souhaite: ''
   });
-  const [formErrors, setFormErrors] = useState({});
-  const [commentaireAdmin, setCommentaireAdmin] = useState('');
-
-  const isAdmin = user?.role === 'admin';
-
-  // Détecter si on doit ouvrir le modal de création
-  useEffect(() => {
-    if (searchParams.get('action') === 'create') {
-      setShowCreateModal(true);
-    }
-  }, [searchParams]);
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    loadData();
-  }, [currentPage, filters, sortBy, sortOrder, searchTerm]);
+    loadDemandes();
+    loadMachines();
+  }, [filters, pagination.currentPage]);
 
-  const loadData = async () => {
+  const loadDemandes = async () => {
     try {
       setLoading(true);
+      setError(null);
+      
       const params = {
-        page: currentPage,
-        search: searchTerm,
-        sort_by: sortBy,
-        sort_order: sortOrder,
-        ...filters
+        page: pagination.currentPage,
+        per_page: pagination.perPage,
+        ...Object.fromEntries(
+          Object.entries(filters).filter(([key, value]) => value !== '')
+        )
       };
 
-      const [demandesResponse, machinesResponse] = await Promise.all([
-        apiService.getDemandes(params),
-        apiService.getMachinesActives()
-      ]);
-
-      setDemandes(demandesResponse.data.data.data);
-      setTotalPages(demandesResponse.data.data.last_page);
-      setMachines(machinesResponse.data.data);
+      console.log('Chargement des demandes avec params:', params);
+      const response = await apiService.getDemandes(params);
+      console.log('Réponse API demandes:', response.data);
+      
+      if (response.data && response.data.data) {
+        setDemandes(response.data.data.data || response.data.data);
+        setPagination(prev => ({
+          ...prev,
+          currentPage: response.data.data.current_page || 1,
+          totalPages: response.data.data.last_page || 1,
+          total: response.data.data.total || 0
+        }));
+      } else {
+        setDemandes([]);
+      }
     } catch (error) {
-      console.error('Erreur lors du chargement des données:', error);
-      toast.error('Erreur lors du chargement des données');
+      console.error('Erreur lors du chargement des demandes:', error);
+      setError('Erreur lors du chargement des demandes');
+      setDemandes([]);
     } finally {
       setLoading(false);
     }
   };
 
-  // Charger les composants quand une machine est sélectionnée
+  const loadMachines = async () => {
+    try {
+      const response = await apiService.getMachinesActives();
+      setMachines(response.data.data || []);
+    } catch (error) {
+      console.error('Erreur lors du chargement des machines:', error);
+    }
+  };
+
   const loadComposants = async (machineId) => {
     if (!machineId) {
       setComposants([]);
@@ -96,107 +99,71 @@ const Demandes = () => {
     }
     
     try {
-      const response = await apiService.getComposants({ machine_id: machineId });
-      setComposants(response.data.data.data);
+      const response = await apiService.getMachineComposants(machineId);
+      setComposants(response.data.data || []);
     } catch (error) {
       console.error('Erreur lors du chargement des composants:', error);
       setComposants([]);
     }
   };
 
-  const handleSearch = (e) => {
-    setSearchTerm(e.target.value);
-    setCurrentPage(1);
-  };
-
-  const handleFilterChange = (field, value) => {
+  const handleFilterChange = (key, value) => {
     setFilters(prev => ({
       ...prev,
-      [field]: value
+      [key]: value
     }));
-    setCurrentPage(1);
+    setPagination(prev => ({ ...prev, currentPage: 1 }));
   };
 
-  const handleSort = (field) => {
-    if (sortBy === field) {
-      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
-    } else {
-      setSortBy(field);
-      setSortOrder('asc');
-    }
-    setCurrentPage(1);
-  };
-
-  const resetFilters = () => {
+  const clearFilters = () => {
     setFilters({
+      search: '',
       statut: '',
       type_demande: '',
       priorite: '',
-      machine_id: '',
-      user_id: ''
+      machine_id: ''
     });
-    setSearchTerm('');
-    setSortBy('created_at');
-    setSortOrder('desc');
-    setCurrentPage(1);
+    setPagination(prev => ({ ...prev, currentPage: 1 }));
   };
 
-  const handleCreateSubmit = async (e) => {
+  const handleFormChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+
+    // Charger les composants quand une machine est sélectionnée
+    if (name === 'machine_id') {
+      loadComposants(value);
+      setFormData(prev => ({
+        ...prev,
+        composant_id: ''
+      }));
+    }
+  };
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
+    setSubmitting(true);
+
     try {
-      setFormErrors({});
-      
-      // Préparer les données du formulaire
-      const submitData = {
+      const dataToSubmit = {
         ...formData,
-        quantite_demandee: formData.quantite_demandee ? parseInt(formData.quantite_demandee) : null,
-        budget_estime: formData.budget_estime ? parseFloat(formData.budget_estime) : null,
-        composant_id: formData.composant_id || null
+        quantite_demandee: parseInt(formData.quantite_demandee) || 1,
+        budget_estime: formData.budget_estime ? parseFloat(formData.budget_estime) : null
       };
 
-      await apiService.createDemande(submitData);
+      await apiService.createDemande(dataToSubmit);
       toast.success('Demande créée avec succès');
-      setShowCreateModal(false);
+      setShowModal(false);
       resetForm();
-      loadData();
+      loadDemandes();
     } catch (error) {
-      if (error.response?.data?.errors) {
-        setFormErrors(error.response.data.errors);
-      } else {
-        toast.error('Erreur lors de la création de la demande');
-      }
-    }
-  };
-
-  const handleTraiterDemande = async () => {
-    try {
-      if (actionType === 'accepter') {
-        await apiService.accepterDemande(selectedDemande.id, commentaireAdmin);
-        toast.success('Demande acceptée avec succès');
-      } else if (actionType === 'refuser') {
-        await apiService.refuserDemande(selectedDemande.id, commentaireAdmin);
-        toast.success('Demande refusée avec succès');
-      }
-      
-      setShowTraiterModal(false);
-      setSelectedDemande(null);
-      setActionType('');
-      setCommentaireAdmin('');
-      loadData();
-    } catch (error) {
-      toast.error('Erreur lors du traitement de la demande');
-    }
-  };
-
-  const handleDelete = async () => {
-    try {
-      await apiService.deleteDemande(selectedDemande.id);
-      toast.success('Demande supprimée avec succès');
-      setShowDeleteModal(false);
-      setSelectedDemande(null);
-      loadData();
-    } catch (error) {
-      toast.error('Erreur lors de la suppression');
+      console.error('Erreur lors de la création:', error);
+      toast.error('Erreur lors de la création de la demande');
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -209,11 +176,10 @@ const Demandes = () => {
       titre: '',
       description: '',
       justification: '',
-      quantite_demandee: '',
+      quantite_demandee: 1,
       budget_estime: '',
       date_souhaite: ''
     });
-    setFormErrors({});
     setComposants([]);
   };
 
@@ -235,49 +201,127 @@ const Demandes = () => {
       'haute': 'warning',
       'critique': 'danger'
     };
-    return <Badge bg={variants[priorite] || 'secondary'}>{priorite}</Badge>;
+    return <Badge bg={variants[priorite] || 'info'}>{priorite}</Badge>;
   };
 
-  return (
-    <div>
-      {/* En-tête */}
-      <div className="d-flex justify-content-between align-items-center mb-4">
-        <div>
-          <h1 className="h3 mb-1">
-            <i className="fas fa-file-alt text-primary me-2"></i>
-            Gestion des Demandes
-          </h1>
-          <p className="text-muted mb-0">
-            {demandes.length} demande(s) trouvée(s)
-          </p>
-        </div>
-        <Button
-          variant="primary"
-          onClick={() => setShowCreateModal(true)}
-        >
-          <i className="fas fa-plus me-2"></i>
-          Nouvelle Demande
-        </Button>
-      </div>
+  const formatDate = (dateString) => {
+    if (!dateString) return '-';
+    return new Date(dateString).toLocaleDateString('fr-FR');
+  };
 
-      {/* Filtres et recherche */}
-      <Card className="mb-4 border-0 shadow-sm">
+  const handlePageChange = (page) => {
+    setPagination(prev => ({ ...prev, currentPage: page }));
+  };
+
+  const renderPagination = () => {
+    if (pagination.totalPages <= 1) return null;
+
+    const items = [];
+    const currentPage = pagination.currentPage;
+    const totalPages = pagination.totalPages;
+
+    // Première page
+    if (currentPage > 1) {
+      items.push(
+        <Pagination.Item key="first" onClick={() => handlePageChange(1)}>
+          1
+        </Pagination.Item>
+      );
+    }
+
+    // Pages autour de la page actuelle
+    for (let i = Math.max(1, currentPage - 2); i <= Math.min(totalPages, currentPage + 2); i++) {
+      items.push(
+        <Pagination.Item 
+          key={i} 
+          active={i === currentPage}
+          onClick={() => handlePageChange(i)}
+        >
+          {i}
+        </Pagination.Item>
+      );
+    }
+
+    // Dernière page
+    if (currentPage < totalPages) {
+      items.push(
+        <Pagination.Item key="last" onClick={() => handlePageChange(totalPages)}>
+          {totalPages}
+        </Pagination.Item>
+      );
+    }
+
+    return (
+      <Pagination className="justify-content-center">
+        <Pagination.Prev 
+          disabled={currentPage === 1}
+          onClick={() => handlePageChange(currentPage - 1)}
+        />
+        {items}
+        <Pagination.Next 
+          disabled={currentPage === totalPages}
+          onClick={() => handlePageChange(currentPage + 1)}
+        />
+      </Pagination>
+    );
+  };
+
+  if (loading && demandes.length === 0) {
+    return (
+      <div className="d-flex justify-content-center align-items-center" style={{ minHeight: '400px' }}>
+        <Spinner animation="border" role="status">
+          <span className="visually-hidden">Chargement...</span>
+        </Spinner>
+      </div>
+    );
+  }
+
+  return (
+    <div className="demandes-page">
+      <Row className="mb-4">
+        <Col>
+          <div className="d-flex justify-content-between align-items-center">
+            <div>
+              <h2 className="mb-1">
+                <i className="fas fa-file-alt me-2"></i>
+                Gestion des Demandes
+              </h2>
+              <p className="text-muted mb-0">
+                {pagination.total} demande(s) trouvée(s)
+              </p>
+            </div>
+            <Button 
+              variant="primary" 
+              onClick={() => setShowModal(true)}
+              className="d-flex align-items-center"
+            >
+              <i className="fas fa-plus me-2"></i>
+              Nouvelle Demande
+            </Button>
+          </div>
+        </Col>
+      </Row>
+
+      {error && (
+        <Alert variant="danger" className="mb-4">
+          <i className="fas fa-exclamation-triangle me-2"></i>
+          {error}
+        </Alert>
+      )}
+
+      {/* Filtres */}
+      <Card className="mb-4">
         <Card.Body>
-          <Row>
-            <Col md={3} className="mb-3">
-              <InputGroup>
-                <InputGroup.Text>
-                  <i className="fas fa-search"></i>
-                </InputGroup.Text>
-                <Form.Control
-                  type="text"
-                  placeholder="Rechercher une demande..."
-                  value={searchTerm}
-                  onChange={handleSearch}
-                />
-              </InputGroup>
+          <Row className="g-3">
+            <Col md={3}>
+              <Form.Control
+                type="text"
+                placeholder="Rechercher une demande..."
+                value={filters.search}
+                onChange={(e) => handleFilterChange('search', e.target.value)}
+              />
             </Col>
-            <Col md={2} className="mb-3">
+            <Col md={2}>
               <Form.Select
                 value={filters.statut}
                 onChange={(e) => handleFilterChange('statut', e.target.value)}
@@ -290,7 +334,7 @@ const Demandes = () => {
                 <option value="terminee">Terminée</option>
               </Form.Select>
             </Col>
-            <Col md={2} className="mb-3">
+            <Col md={2}>
               <Form.Select
                 value={filters.type_demande}
                 onChange={(e) => handleFilterChange('type_demande', e.target.value)}
@@ -302,7 +346,7 @@ const Demandes = () => {
                 <option value="inspection">Inspection</option>
               </Form.Select>
             </Col>
-            <Col md={2} className="mb-3">
+            <Col md={2}>
               <Form.Select
                 value={filters.priorite}
                 onChange={(e) => handleFilterChange('priorite', e.target.value)}
@@ -314,7 +358,7 @@ const Demandes = () => {
                 <option value="critique">Critique</option>
               </Form.Select>
             </Col>
-            <Col md={2} className="mb-3">
+            <Col md={2}>
               <Form.Select
                 value={filters.machine_id}
                 onChange={(e) => handleFilterChange('machine_id', e.target.value)}
@@ -327,12 +371,8 @@ const Demandes = () => {
                 ))}
               </Form.Select>
             </Col>
-            <Col md={1} className="mb-3">
-              <Button
-                variant="outline-secondary"
-                onClick={resetFilters}
-                title="Réinitialiser les filtres"
-              >
+            <Col md={1}>
+              <Button variant="outline-secondary" onClick={clearFilters} title="Effacer les filtres">
                 <i className="fas fa-times"></i>
               </Button>
             </Col>
@@ -340,329 +380,227 @@ const Demandes = () => {
         </Card.Body>
       </Card>
 
-      {/* Table des demandes */}
-      <Card className="border-0 shadow-sm">
+      {/* Liste des demandes */}
+      <Card>
         <Card.Body className="p-0">
-          {loading ? (
-            <div className="text-center py-5">
-              <Spinner animation="border" variant="primary" />
-            </div>
-          ) : demandes.length > 0 ? (
-            <>
-              <Table responsive hover className="mb-0">
-                <thead className="bg-light">
-                  <tr>
-                    <th 
-                      style={{ cursor: 'pointer' }}
-                      onClick={() => handleSort('numero_demande')}
-                    >
-                      Numéro
-                      {sortBy === 'numero_demande' && (
-                        <i className={`fas fa-sort-${sortOrder === 'asc' ? 'up' : 'down'} ms-1`}></i>
-                      )}
-                    </th>
-                    <th>Titre</th>
-                    {isAdmin && <th>Utilisateur</th>}
-                    <th>Machine</th>
-                    <th>Type</th>
-                    <th>Priorité</th>
-                    <th>Statut</th>
-                    <th 
-                      style={{ cursor: 'pointer' }}
-                      onClick={() => handleSort('created_at')}
-                    >
-                      Date
-                      {sortBy === 'created_at' && (
-                        <i className={`fas fa-sort-${sortOrder === 'asc' ? 'up' : 'down'} ms-1`}></i>
-                      )}
-                    </th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {demandes.map((demande) => (
-                    <tr key={demande.id}>
-                      <td>
-                        <Link 
-                          to={`/demandes/${demande.id}`}
-                          className="fw-bold text-decoration-none"
-                        >
-                          {demande.numero_demande}
-                        </Link>
-                      </td>
-                      <td>
-                        <div>
-                          {demande.titre}
-                          {demande.description && (
-                            <div className="small text-muted">
-                              {demande.description.substring(0, 50)}...
-                            </div>
-                          )}
-                        </div>
-                      </td>
-                      {isAdmin && (
-                        <td>
-                          <div className="d-flex align-items-center">
-                            <i className="fas fa-user-circle text-muted me-2"></i>
-                            {demande.user?.name}
-                          </div>
-                        </td>
-                      )}
-                      <td>
-                        <Link to={`/machines/${demande.machine?.id}`} className="text-decoration-none">
-                          <i className="fas fa-cog text-muted me-1"></i>
-                          {demande.machine?.nom}
-                        </Link>
-                      </td>
-                      <td>
-                        <Badge bg="secondary">{demande.type_demande}</Badge>
-                      </td>
-                      <td>{getPrioriteBadge(demande.priorite)}</td>
-                      <td>{getStatutBadge(demande.statut)}</td>
-                      <td>
-                        <small className="text-muted">
-                          {new Date(demande.created_at).toLocaleDateString('fr-FR', {
-                            day: '2-digit',
-                            month: '2-digit',
-                            year: 'numeric',
-                            hour: '2-digit',
-                            minute: '2-digit'
-                          })}
-                        </small>
-                      </td>
-                      <td>
-                        <Dropdown>
-                          <Dropdown.Toggle 
-                            variant="outline-secondary" 
-                            size="sm"
-                            id={`dropdown-${demande.id}`}
-                          >
-                            <i className="fas fa-ellipsis-v"></i>
-                          </Dropdown.Toggle>
-
-                          <Dropdown.Menu>
-                            <Dropdown.Item as={Link} to={`/demandes/${demande.id}`}>
-                              <i className="fas fa-eye me-2"></i>
-                              Voir détails
-                            </Dropdown.Item>
-                            
-                            {/* Actions pour admin */}
-                            {isAdmin && demande.statut === 'en_attente' && (
-                              <>
-                                <Dropdown.Divider />
-                                <Dropdown.Header>Actions administrateur</Dropdown.Header>
-                                <Dropdown.Item 
-                                  onClick={() => {
-                                    setSelectedDemande(demande);
-                                    setActionType('accepter');
-                                    setShowTraiterModal(true);
-                                  }}
-                                >
-                                  <i className="fas fa-check text-success me-2"></i>
-                                  Accepter
-                                </Dropdown.Item>
-                                <Dropdown.Item 
-                                  onClick={() => {
-                                    setSelectedDemande(demande);
-                                    setActionType('refuser');
-                                    setShowTraiterModal(true);
-                                  }}
-                                >
-                                  <i className="fas fa-times text-danger me-2"></i>
-                                  Refuser
-                                </Dropdown.Item>
-                              </>
-                            )}
-                            
-                            {/* Actions pour utilisateur (ses propres demandes en attente) */}
-                            {(!isAdmin && demande.user_id === user?.id && demande.statut === 'en_attente') && (
-                              <>
-                                <Dropdown.Divider />
-                                <Dropdown.Item 
-                                  className="text-danger"
-                                  onClick={() => {
-                                    setSelectedDemande(demande);
-                                    setShowDeleteModal(true);
-                                  }}
-                                >
-                                  <i className="fas fa-trash me-2"></i>
-                                  Supprimer
-                                </Dropdown.Item>
-                              </>
-                            )}
-
-                            {/* Actions pour admin - suppression */}
-                            {isAdmin && (
-                              <>
-                                <Dropdown.Divider />
-                                <Dropdown.Item 
-                                  className="text-danger"
-                                  onClick={() => {
-                                    setSelectedDemande(demande);
-                                    setShowDeleteModal(true);
-                                  }}
-                                >
-                                  <i className="fas fa-trash me-2"></i>
-                                  Supprimer
-                                </Dropdown.Item>
-                              </>
-                            )}
-                          </Dropdown.Menu>
-                        </Dropdown>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </Table>
-
-              {/* Pagination */}
-              {totalPages > 1 && (
-                <div className="d-flex justify-content-center p-3">
-                  <Pagination>
-                    <Pagination.First 
-                      disabled={currentPage === 1}
-                      onClick={() => setCurrentPage(1)}
-                    />
-                    <Pagination.Prev 
-                      disabled={currentPage === 1}
-                      onClick={() => setCurrentPage(currentPage - 1)}
-                    />
-                    
-                    {[...Array(Math.min(5, totalPages))].map((_, index) => {
-                      const page = currentPage <= 3 ? index + 1 : currentPage - 2 + index;
-                      if (page <= totalPages) {
-                        return (
-                          <Pagination.Item
-                            key={page}
-                            active={page === currentPage}
-                            onClick={() => setCurrentPage(page)}
-                          >
-                            {page}
-                          </Pagination.Item>
-                        );
-                      }
-                      return null;
-                    })}
-                    
-                    <Pagination.Next 
-                      disabled={currentPage === totalPages}
-                      onClick={() => setCurrentPage(currentPage + 1)}
-                    />
-                    <Pagination.Last 
-                      disabled={currentPage === totalPages}
-                      onClick={() => setCurrentPage(totalPages)}
-                    />
-                  </Pagination>
-                </div>
-              )}
-            </>
-          ) : (
+          {demandes.length === 0 ? (
             <div className="text-center py-5">
               <i className="fas fa-file-alt fa-3x text-muted mb-3"></i>
-              <h5 className="text-muted">Aucune demande trouvée</h5>
-              <p className="text-muted">
-                {searchTerm || Object.values(filters).some(f => f) 
-                  ? 'Essayez de modifier vos critères de recherche' 
-                  : 'Commencez par créer votre première demande'}
+              <h4>Aucune demande trouvée</h4>
+              <p className="text-muted mb-4">
+                {Object.values(filters).some(filter => filter !== '') 
+                  ? 'Aucune demande ne correspond à vos critères de recherche.'
+                  : 'Commencez par créer votre première demande'
+                }
               </p>
-              {!searchTerm && !Object.values(filters).some(f => f) && (
-                <Button 
-                  variant="primary" 
-                  onClick={() => setShowCreateModal(true)}
-                >
+              {Object.values(filters).some(filter => filter !== '') ? (
+                <Button variant="outline-primary" onClick={clearFilters}>
+                  <i className="fas fa-times me-2"></i>
+                  Effacer les filtres
+                </Button>
+              ) : (
+                <Button variant="primary" onClick={() => setShowModal(true)}>
                   <i className="fas fa-plus me-2"></i>
                   Créer une demande
                 </Button>
               )}
             </div>
+          ) : (
+            <>
+              <div className="table-responsive">
+                <Table hover className="mb-0">
+                  <thead>
+                    <tr>
+                      <th>Numéro</th>
+                      <th>Titre</th>
+                      <th>Machine</th>
+                      <th>Type</th>
+                      <th>Priorité</th>
+                      <th>Statut</th>
+                      <th>Demandeur</th>
+                      <th>Date</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {demandes.map((demande) => (
+                      <tr key={demande.id}>
+                        <td>
+                          <span className="fw-bold text-primary">
+                            {demande.numero_demande}
+                          </span>
+                        </td>
+                        <td>
+                          <div>
+                            <div className="fw-bold">{demande.titre}</div>
+                            {demande.description && (
+                              <small className="text-muted">
+                                {demande.description.length > 50 
+                                  ? `${demande.description.substring(0, 50)}...`
+                                  : demande.description
+                                }
+                              </small>
+                            )}
+                          </div>
+                        </td>
+                        <td>
+                          <div>
+                            <div className="fw-bold">{demande.machine?.nom}</div>
+                            {demande.machine?.localisation && (
+                              <small className="text-muted">
+                                {demande.machine.localisation}
+                              </small>
+                            )}
+                          </div>
+                        </td>
+                        <td>
+                          <Badge bg="info">
+                            {demande.type_demande}
+                          </Badge>
+                        </td>
+                        <td>
+                          {getPrioriteBadge(demande.priorite)}
+                        </td>
+                        <td>
+                          {getStatutBadge(demande.statut)}
+                        </td>
+                        <td>
+                          <div>
+                            <div className="fw-bold">{demande.user?.name}</div>
+                            <small className="text-muted">{demande.user?.email}</small>
+                          </div>
+                        </td>
+                        <td>
+                          {formatDate(demande.created_at)}
+                        </td>
+                        <td>
+                          <div className="d-flex gap-1">
+                            <Button
+                              as={Link}
+                              to={`/demandes/${demande.id}`}
+                              variant="outline-primary"
+                              size="sm"
+                              title="Voir les détails"
+                            >
+                              <i className="fas fa-eye"></i>
+                            </Button>
+                            
+                            {user?.role === 'admin' && demande.statut === 'en_attente' && (
+                              <>
+                                <Button
+                                  variant="outline-success"
+                                  size="sm"
+                                  title="Accepter"
+                                  onClick={() => {/* TODO: Implémenter l'acceptation */}}
+                                >
+                                  <i className="fas fa-check"></i>
+                                </Button>
+                                <Button
+                                  variant="outline-danger"
+                                  size="sm"
+                                  title="Refuser"
+                                  onClick={() => {/* TODO: Implémenter le refus */}}
+                                >
+                                  <i className="fas fa-times"></i>
+                                </Button>
+                              </>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </Table>
+              </div>
+              
+              {/* Pagination */}
+              {pagination.totalPages > 1 && (
+                <div className="d-flex justify-content-between align-items-center p-3 border-top">
+                  <div className="text-muted">
+                    Affichage de {((pagination.currentPage - 1) * pagination.perPage) + 1} à{' '}
+                    {Math.min(pagination.currentPage * pagination.perPage, pagination.total)} sur {pagination.total} demandes
+                  </div>
+                  {renderPagination()}
+                </div>
+              )}
+            </>
           )}
         </Card.Body>
       </Card>
 
       {/* Modal de création */}
-      <Modal show={showCreateModal} onHide={() => setShowCreateModal(false)} size="lg">
+      <Modal show={showModal} onHide={() => setShowModal(false)} size="lg">
         <Modal.Header closeButton>
           <Modal.Title>
-            <i className="fas fa-plus text-primary me-2"></i>
+            <i className="fas fa-plus me-2"></i>
             Nouvelle Demande
           </Modal.Title>
         </Modal.Header>
-        <Form onSubmit={handleCreateSubmit}>
+        <Form onSubmit={handleSubmit}>
           <Modal.Body>
-            <Row>
+            <Row className="g-3">
               <Col md={6}>
-                <Form.Group className="mb-3">
-                  <Form.Label>Machine *</Form.Label>
+                <Form.Group>
+                  <Form.Label>Machine <span className="text-danger">*</span></Form.Label>
                   <Form.Select
+                    name="machine_id"
                     value={formData.machine_id}
-                    onChange={(e) => {
-                      const machineId = e.target.value;
-                      setFormData({...formData, machine_id: machineId, composant_id: ''});
-                      loadComposants(machineId);
-                    }}
-                    isInvalid={!!formErrors.machine_id}
+                    onChange={handleFormChange}
+                    required
                   >
-                    <option value="">Sélectionner une machine</option>
+                    <option value="">Sélectionnez une machine</option>
                     {machines.map(machine => (
                       <option key={machine.id} value={machine.id}>
-                        {machine.nom} - {machine.numero_serie}
+                        {machine.nom} - {machine.localisation}
                       </option>
                     ))}
                   </Form.Select>
-                  <Form.Control.Feedback type="invalid">
-                    {formErrors.machine_id?.[0]}
-                  </Form.Control.Feedback>
                 </Form.Group>
               </Col>
               <Col md={6}>
-                <Form.Group className="mb-3">
-                  <Form.Label>Composant (optionnel)</Form.Label>
+                <Form.Group>
+                  <Form.Label>Composant</Form.Label>
                   <Form.Select
+                    name="composant_id"
                     value={formData.composant_id}
-                    onChange={(e) => setFormData({...formData, composant_id: e.target.value})}
+                    onChange={handleFormChange}
                     disabled={!formData.machine_id}
                   >
-                    <option value="">Sélectionner un composant</option>
+                    <option value="">Aucun composant spécifique</option>
                     {composants.map(composant => (
                       <option key={composant.id} value={composant.id}>
-                        {composant.nom} - {composant.reference}
+                        {composant.nom} ({composant.reference})
                       </option>
                     ))}
                   </Form.Select>
-                  {!formData.machine_id && (
-                    <Form.Text className="text-muted">
-                      Sélectionnez d'abord une machine
-                    </Form.Text>
-                  )}
+                  <Form.Text className="text-muted">
+                    Optionnel - Sélectionnez d'abord une machine
+                  </Form.Text>
                 </Form.Group>
               </Col>
-            </Row>
-
-            <Row>
               <Col md={6}>
-                <Form.Group className="mb-3">
-                  <Form.Label>Type de demande *</Form.Label>
+                <Form.Group>
+                  <Form.Label>Type de demande <span className="text-danger">*</span></Form.Label>
                   <Form.Select
+                    name="type_demande"
                     value={formData.type_demande}
-                    onChange={(e) => setFormData({...formData, type_demande: e.target.value})}
-                    isInvalid={!!formErrors.type_demande}
+                    onChange={handleFormChange}
+                    required
                   >
                     <option value="maintenance">Maintenance</option>
                     <option value="piece">Pièce</option>
                     <option value="reparation">Réparation</option>
                     <option value="inspection">Inspection</option>
                   </Form.Select>
-                  <Form.Control.Feedback type="invalid">
-                    {formErrors.type_demande?.[0]}
-                  </Form.Control.Feedback>
                 </Form.Group>
               </Col>
               <Col md={6}>
-                <Form.Group className="mb-3">
+                <Form.Group>
                   <Form.Label>Priorité</Form.Label>
                   <Form.Select
+                    name="priorite"
                     value={formData.priorite}
-                    onChange={(e) => setFormData({...formData, priorite: e.target.value})}
+                    onChange={handleFormChange}
                   >
                     <option value="basse">Basse</option>
                     <option value="normale">Normale</option>
@@ -671,81 +609,80 @@ const Demandes = () => {
                   </Form.Select>
                 </Form.Group>
               </Col>
-            </Row>
-
-            <Form.Group className="mb-3">
-              <Form.Label>Titre *</Form.Label>
-              <Form.Control
-                type="text"
-                value={formData.titre}
-                onChange={(e) => setFormData({...formData, titre: e.target.value})}
-                placeholder="Titre de la demande"
-                isInvalid={!!formErrors.titre}
-              />
-              <Form.Control.Feedback type="invalid">
-                {formErrors.titre?.[0]}
-              </Form.Control.Feedback>
-            </Form.Group>
-
-            <Form.Group className="mb-3">
-              <Form.Label>Description *</Form.Label>
-              <Form.Control
-                as="textarea"
-                rows={4}
-                value={formData.description}
-                onChange={(e) => setFormData({...formData, description: e.target.value})}
-                placeholder="Décrivez en détail votre demande"
-                isInvalid={!!formErrors.description}
-              />
-              <Form.Control.Feedback type="invalid">
-                {formErrors.description?.[0]}
-              </Form.Control.Feedback>
-            </Form.Group>
-
-            <Form.Group className="mb-3">
-              <Form.Label>Justification</Form.Label>
-              <Form.Control
-                as="textarea"
-                rows={3}
-                value={formData.justification}
-                onChange={(e) => setFormData({...formData, justification: e.target.value})}
-                placeholder="Justifiez pourquoi cette demande est nécessaire"
-              />
-            </Form.Group>
-
-            <Row>
-              <Col md={4}>
-                <Form.Group className="mb-3">
-                  <Form.Label>Quantité demandée</Form.Label>
+              <Col md={12}>
+                <Form.Group>
+                  <Form.Label>Titre <span className="text-danger">*</span></Form.Label>
                   <Form.Control
-                    type="number"
-                    min="1"
-                    value={formData.quantite_demandee}
-                    onChange={(e) => setFormData({...formData, quantite_demandee: e.target.value})}
-                    placeholder="1"
+                    type="text"
+                    name="titre"
+                    value={formData.titre}
+                    onChange={handleFormChange}
+                    placeholder="Titre de la demande"
+                    maxLength={150}
+                    required
+                  />
+                </Form.Group>
+              </Col>
+              <Col md={12}>
+                <Form.Group>
+                  <Form.Label>Description <span className="text-danger">*</span></Form.Label>
+                  <Form.Control
+                    as="textarea"
+                    rows={3}
+                    name="description"
+                    value={formData.description}
+                    onChange={handleFormChange}
+                    placeholder="Description détaillée de la demande"
+                    required
+                  />
+                </Form.Group>
+              </Col>
+              <Col md={12}>
+                <Form.Group>
+                  <Form.Label>Justification</Form.Label>
+                  <Form.Control
+                    as="textarea"
+                    rows={2}
+                    name="justification"
+                    value={formData.justification}
+                    onChange={handleFormChange}
+                    placeholder="Justification de la demande (optionnel)"
                   />
                 </Form.Group>
               </Col>
               <Col md={4}>
-                <Form.Group className="mb-3">
+                <Form.Group>
+                  <Form.Label>Quantité</Form.Label>
+                  <Form.Control
+                    type="number"
+                    name="quantite_demandee"
+                    value={formData.quantite_demandee}
+                    onChange={handleFormChange}
+                    min="1"
+                  />
+                </Form.Group>
+              </Col>
+              <Col md={4}>
+                <Form.Group>
                   <Form.Label>Budget estimé (€)</Form.Label>
                   <Form.Control
                     type="number"
                     step="0.01"
-                    min="0"
+                    name="budget_estime"
                     value={formData.budget_estime}
-                    onChange={(e) => setFormData({...formData, budget_estime: e.target.value})}
+                    onChange={handleFormChange}
                     placeholder="0.00"
                   />
                 </Form.Group>
               </Col>
               <Col md={4}>
-                <Form.Group className="mb-3">
+                <Form.Group>
                   <Form.Label>Date souhaitée</Form.Label>
                   <Form.Control
                     type="date"
+                    name="date_souhaite"
                     value={formData.date_souhaite}
-                    onChange={(e) => setFormData({...formData, date_souhaite: e.target.value})}
+                    onChange={handleFormChange}
                     min={new Date().toISOString().split('T')[0]}
                   />
                 </Form.Group>
@@ -753,86 +690,28 @@ const Demandes = () => {
             </Row>
           </Modal.Body>
           <Modal.Footer>
-            <Button variant="secondary" onClick={() => setShowCreateModal(false)}>
+            <Button variant="secondary" onClick={() => setShowModal(false)}>
               Annuler
             </Button>
-            <Button variant="primary" type="submit">
-              <i className="fas fa-save me-2"></i>
-              Créer la demande
+            <Button 
+              type="submit" 
+              variant="primary" 
+              disabled={submitting}
+            >
+              {submitting ? (
+                <>
+                  <Spinner as="span" animation="border" size="sm" className="me-2" />
+                  Création...
+                </>
+              ) : (
+                <>
+                  <i className="fas fa-save me-2"></i>
+                  Créer la demande
+                </>
+              )}
             </Button>
           </Modal.Footer>
         </Form>
-      </Modal>
-
-      {/* Modal de traitement (accepter/refuser) */}
-      <Modal show={showTraiterModal} onHide={() => setShowTraiterModal(false)}>
-        <Modal.Header closeButton>
-          <Modal.Title className={actionType === 'accepter' ? 'text-success' : 'text-danger'}>
-            <i className={`fas ${actionType === 'accepter' ? 'fa-check' : 'fa-times'} me-2`}></i>
-            {actionType === 'accepter' ? 'Accepter' : 'Refuser'} la demande
-          </Modal.Title>
-        </Modal.Header>
-        <Modal.Body>
-          <p>
-            Êtes-vous sûr de vouloir <strong>{actionType}</strong> la demande{' '}
-            <strong>{selectedDemande?.numero_demande}</strong> ?
-          </p>
-          
-          <Form.Group>
-            <Form.Label>
-              Commentaire {actionType === 'refuser' ? '(requis)' : '(optionnel)'}
-            </Form.Label>
-            <Form.Control
-              as="textarea"
-              rows={3}
-              value={commentaireAdmin}
-              onChange={(e) => setCommentaireAdmin(e.target.value)}
-              placeholder={`Ajoutez un commentaire pour ${actionType === 'accepter' ? 'expliquer les prochaines étapes' : 'expliquer les raisons du refus'}`}
-            />
-          </Form.Group>
-        </Modal.Body>
-        <Modal.Footer>
-          <Button variant="secondary" onClick={() => setShowTraiterModal(false)}>
-            Annuler
-          </Button>
-          <Button 
-            variant={actionType === 'accepter' ? 'success' : 'danger'} 
-            onClick={handleTraiterDemande}
-            disabled={actionType === 'refuser' && !commentaireAdmin.trim()}
-          >
-            <i className={`fas ${actionType === 'accepter' ? 'fa-check' : 'fa-times'} me-2`}></i>
-            {actionType === 'accepter' ? 'Accepter' : 'Refuser'} définitivement
-          </Button>
-        </Modal.Footer>
-      </Modal>
-
-      {/* Modal de suppression */}
-      <Modal show={showDeleteModal} onHide={() => setShowDeleteModal(false)}>
-        <Modal.Header closeButton>
-          <Modal.Title className="text-danger">
-            <i className="fas fa-exclamation-triangle me-2"></i>
-            Confirmer la suppression
-          </Modal.Title>
-        </Modal.Header>
-        <Modal.Body>
-          <Alert variant="warning">
-            <Alert.Heading className="h6">Attention !</Alert.Heading>
-            Êtes-vous sûr de vouloir supprimer la demande <strong>{selectedDemande?.numero_demande}</strong> ?
-            <hr />
-            <p className="mb-0">
-              Cette action est irréversible.
-            </p>
-          </Alert>
-        </Modal.Body>
-        <Modal.Footer>
-          <Button variant="secondary" onClick={() => setShowDeleteModal(false)}>
-            Annuler
-          </Button>
-          <Button variant="danger" onClick={handleDelete}>
-            <i className="fas fa-trash me-2"></i>
-            Supprimer définitivement
-          </Button>
-        </Modal.Footer>
       </Modal>
     </div>
   );

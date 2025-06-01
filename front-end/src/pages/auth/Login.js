@@ -1,6 +1,6 @@
 // src/pages/auth/Login.js
 import React, { useState } from 'react';
-import { Form, Button, Alert, Spinner } from 'react-bootstrap';
+import { Form, Button, Alert, InputGroup } from 'react-bootstrap';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -10,6 +10,7 @@ const Login = () => {
     password: ''
   });
   const [errors, setErrors] = useState({});
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const { login } = useAuth();
   const navigate = useNavigate();
@@ -20,8 +21,7 @@ const Login = () => {
       ...prev,
       [name]: value
     }));
-    
-    // Effacer l'erreur pour ce champ
+    // Effacer l'erreur du champ modifié
     if (errors[name]) {
       setErrors(prev => ({
         ...prev,
@@ -52,9 +52,7 @@ const Login = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    if (!validateForm()) {
-      return;
-    }
+    if (!validateForm()) return;
 
     setLoading(true);
     try {
@@ -70,28 +68,36 @@ const Login = () => {
   };
 
   return (
-    <div>
+    <div className="login-form">
+      {/* En-tête */}
       <div className="text-center mb-4">
-        <h4 className="fw-bold mb-2">Connexion</h4>
-        <p className="text-muted">Connectez-vous à votre compte</p>
+        <div className="auth-icon mb-3">
+          <i className="fas fa-sign-in-alt"></i>
+        </div>
+        <h2 className="h4 text-dark fw-bold mb-1">Connexion</h2>
+        <p className="text-muted">Accédez à votre espace de gestion</p>
       </div>
 
-      <Form onSubmit={handleSubmit}>
+      {/* Formulaire */}
+      <Form onSubmit={handleSubmit} noValidate>
         {/* Email */}
         <Form.Group className="mb-3">
-          <Form.Label>
-            <i className="fas fa-envelope me-2"></i>
+          <Form.Label className="fw-semibold text-dark">
+            <i className="fas fa-envelope me-2 text-primary"></i>
             Adresse email
           </Form.Label>
-          <Form.Control
-            type="email"
-            name="email"
-            value={formData.email}
-            onChange={handleChange}
-            placeholder="Entrez votre email"
-            isInvalid={!!errors.email}
-            disabled={loading}
-          />
+          <InputGroup>
+            <Form.Control
+              type="email"
+              name="email"
+              value={formData.email}
+              onChange={handleChange}
+              placeholder="votre.email@exemple.com"
+              isInvalid={!!errors.email}
+              className="form-control-lg"
+              autoComplete="email"
+            />
+          </InputGroup>
           <Form.Control.Feedback type="invalid">
             {errors.email}
           </Form.Control.Feedback>
@@ -99,41 +105,61 @@ const Login = () => {
 
         {/* Mot de passe */}
         <Form.Group className="mb-4">
-          <Form.Label>
-            <i className="fas fa-lock me-2"></i>
+          <Form.Label className="fw-semibold text-dark">
+            <i className="fas fa-lock me-2 text-primary"></i>
             Mot de passe
           </Form.Label>
-          <Form.Control
-            type="password"
-            name="password"
-            value={formData.password}
-            onChange={handleChange}
-            placeholder="Entrez votre mot de passe"
-            isInvalid={!!errors.password}
-            disabled={loading}
-          />
+          <InputGroup>
+            <Form.Control
+              type={showPassword ? 'text' : 'password'}
+              name="password"
+              value={formData.password}
+              onChange={handleChange}
+              placeholder="Votre mot de passe"
+              isInvalid={!!errors.password}
+              className="form-control-lg"
+              autoComplete="current-password"
+            />
+            <Button
+              variant="outline-secondary"
+              onClick={() => setShowPassword(!showPassword)}
+              className="password-toggle-btn"
+            >
+              <i className={`fas ${showPassword ? 'fa-eye-slash' : 'fa-eye'}`}></i>
+            </Button>
+          </InputGroup>
           <Form.Control.Feedback type="invalid">
             {errors.password}
           </Form.Control.Feedback>
         </Form.Group>
+
+        {/* Options */}
+        <div className="d-flex justify-content-between align-items-center mb-4">
+          <Form.Check
+            type="checkbox"
+            id="remember-me"
+            label="Se souvenir de moi"
+            className="text-muted"
+          />
+          <Link 
+            to="/forgot-password" 
+            className="text-decoration-none small fw-medium"
+          >
+            Mot de passe oublié ?
+          </Link>
+        </div>
 
         {/* Bouton de connexion */}
         <Button
           type="submit"
           variant="primary"
           size="lg"
-          className="w-100 mb-3"
+          className="w-100 fw-semibold"
           disabled={loading}
         >
           {loading ? (
             <>
-              <Spinner
-                as="span"
-                animation="border"
-                size="sm"
-                role="status"
-                className="me-2"
-              />
+              <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
               Connexion en cours...
             </>
           ) : (
@@ -143,69 +169,95 @@ const Login = () => {
             </>
           )}
         </Button>
-
-        {/* Lien vers inscription */}
-        <div className="text-center">
-          <p className="text-muted mb-0">
-            Pas encore de compte ?{' '}
-            <Link 
-              to="/register" 
-              className="text-decoration-none fw-bold"
-              style={{ color: '#667eea' }}
-            >
-              Créer un compte
-            </Link>
-          </p>
-        </div>
       </Form>
 
-      {/* Informations de démonstration */}
-      <Alert variant="info" className="mt-4">
-        <Alert.Heading className="h6">
-          <i className="fas fa-info-circle me-2"></i>
-          Comptes de démonstration
-        </Alert.Heading>
-        <hr />
-        <div className="small">
-          <strong>Administrateur :</strong><br />
-          Email: admin@example.com<br />
-          Mot de passe: password<br /><br />
-          
-          <strong>Utilisateur :</strong><br />
-          Email: user@example.com<br />
-          Mot de passe: password
+      {/* Lien vers l'inscription */}
+      <div className="text-center mt-4 pt-3 border-top">
+        <p className="text-muted mb-0">
+          Pas encore de compte ?{' '}
+          <Link 
+            to="/register" 
+            className="text-decoration-none fw-semibold"
+          >
+            Créer un compte
+          </Link>
+        </p>
+      </div>
+
+      {/* Section d'aide */}
+      <div className="help-section mt-4 pt-3">
+        <div className="row text-center">
+          <div className="col-4">
+            <div className="help-item">
+              <i className="fas fa-shield-alt text-success mb-1"></i>
+              <p className="small text-muted mb-0">Sécurisé</p>
+            </div>
+          </div>
+          <div className="col-4">
+            <div className="help-item">
+              <i className="fas fa-clock text-info mb-1"></i>
+              <p className="small text-muted mb-0">24/7</p>
+            </div>
+          </div>
+          <div className="col-4">
+            <div className="help-item">
+              <i className="fas fa-headset text-warning mb-1"></i>
+              <p className="small text-muted mb-0">Support</p>
+            </div>
+          </div>
         </div>
-      </Alert>
+      </div>
 
       <style jsx>{`
-        .form-control {
-          border-radius: 8px;
-          border: 1px solid #e9ecef;
-          padding: 12px 16px;
-          transition: all 0.2s ease;
+        .auth-icon {
+          width: 60px;
+          height: 60px;
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          border-radius: 50%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          margin: 0 auto;
+          font-size: 1.5rem;
+          color: white;
+          box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
         }
 
-        .form-control:focus {
+        .form-control-lg {
+          padding: 0.75rem 1rem;
+          font-size: 1rem;
+          border-radius: 8px;
+          border: 2px solid #e9ecef;
+          transition: all 0.3s ease;
+        }
+
+        .form-control-lg:focus {
           border-color: #667eea;
           box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25);
+          transform: translateY(-1px);
         }
 
-        .form-label {
-          font-weight: 600;
-          color: #495057;
-          margin-bottom: 8px;
+        .password-toggle-btn {
+          border-left: none;
+          border: 2px solid #e9ecef;
+          border-left: none;
+        }
+
+        .password-toggle-btn:hover {
+          background-color: #f8f9fa;
         }
 
         .btn-primary {
           background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
           border: none;
           border-radius: 8px;
-          padding: 12px;
-          font-weight: 600;
+          padding: 0.75rem 1.5rem;
+          font-size: 1rem;
+          box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
           transition: all 0.3s ease;
         }
 
-        .btn-primary:hover:not(:disabled) {
+        .btn-primary:hover {
           transform: translateY(-2px);
           box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
         }
@@ -214,22 +266,26 @@ const Login = () => {
           transform: translateY(0);
         }
 
-        .alert-info {
-          border: none;
-          background: rgba(102, 126, 234, 0.1);
-          border-radius: 8px;
+        .help-item {
+          padding: 0.5rem;
         }
 
-        .alert-info .alert-heading {
-          color: #667eea;
+        .help-item i {
+          font-size: 1.2rem;
+          display: block;
         }
 
-        a {
-          transition: color 0.2s ease;
-        }
-
-        a:hover {
-          color: #5a6fd8 !important;
+        @media (max-width: 576px) {
+          .auth-icon {
+            width: 50px;
+            height: 50px;
+            font-size: 1.25rem;
+          }
+          
+          .form-control-lg {
+            padding: 0.625rem 0.875rem;
+            font-size: 0.95rem;
+          }
         }
       `}</style>
     </div>
