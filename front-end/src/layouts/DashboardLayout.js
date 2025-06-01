@@ -1,4 +1,4 @@
-// src/layouts/DashboardLayout.js
+// src/layouts/DashboardLayout.js - Version corrigée
 import React, { useState, useEffect } from 'react';
 import { Navbar, Nav, Container, Row, Col, Dropdown, Badge } from 'react-bootstrap';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
@@ -39,7 +39,7 @@ const DashboardLayout = ({ children }) => {
     try {
       if (user?.role === 'admin') {
         const response = await apiService.getAlertes();
-        setAlertes(response.data);
+        setAlertes(response.data || {});
       }
     } catch (error) {
       console.error('Erreur lors du chargement des alertes:', error);
@@ -123,7 +123,7 @@ const DashboardLayout = ({ children }) => {
             {/* Alertes rapides pour admin */}
             {user?.role === 'admin' && (
               <>
-                {alertes.demandes_en_attente > 0 && (
+                {(alertes.demandes_en_attente || 0) > 0 && (
                   <Nav.Link 
                     as={Link} 
                     to="/demandes?statut=en_attente"
@@ -137,7 +137,7 @@ const DashboardLayout = ({ children }) => {
                   </Nav.Link>
                 )}
                 
-                {alertes.composants_defaillants > 0 && (
+                {(alertes.composants_defaillants || 0) > 0 && (
                   <Nav.Link 
                     as={Link} 
                     to="/composants?statut=defaillant"
@@ -229,7 +229,7 @@ const DashboardLayout = ({ children }) => {
                     <div className="d-flex justify-content-between mb-1">
                       <span>Machines actives:</span>
                       <span className="text-success fw-bold">
-                        {alertes.machines_total - (alertes.machines_en_maintenance || 0)}
+                        {(alertes.machines_total || 0) - (alertes.machines_en_maintenance || 0)}
                       </span>
                     </div>
                     <div className="d-flex justify-content-between mb-1">
@@ -259,7 +259,8 @@ const DashboardLayout = ({ children }) => {
         </Row>
       </div>
 
-      <style jsx>{`
+      {/* CSS intégré (corrigé) */}
+      <style>{`
         .sidebar-link {
           padding: 10px 15px;
           border-radius: 8px;

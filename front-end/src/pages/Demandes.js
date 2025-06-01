@@ -84,13 +84,57 @@ const Demandes = () => {
   };
 
   const loadMachines = async () => {
-    try {
-      const response = await apiService.getMachinesActives();
-      setMachines(response.data.data || []);
-    } catch (error) {
-      console.error('Erreur lors du chargement des machines:', error);
+  try {
+    setLoading(true);
+    setError(null);
+    
+    const params = {
+      page: pagination.currentPage,
+      per_page: pagination.perPage,
+      // Ajouter un timestamp pour éviter le cache
+      _t: Date.now(),
+      ...Object.fromEntries(
+        Object.entries(filters).filter(([key, value]) => value !== '')
+      )
+    };
+
+    console.log('Chargement des machines avec params:', params);
+    const response = await apiService.getMachines(params);
+    console.log('Réponse API machines:', response.data);
+    
+    if (response.data && response.data.data) {
+      const machinesData = response.data.data.data || response.data.data;
+      
+      // Debug des URLs d'images
+      console.group('Debug Images après chargement');
+      machinesData.forEach(machine => {
+        console.log(`Machine ${machine.id} (${machine.nom}):`, {
+          has_image: machine.has_image,
+          image_url: machine.image_url,
+          image_path: machine.image_path,
+          url_complete: machine.image_url
+        });
+      });
+      console.groupEnd();
+      
+      setMachines(machinesData);
+      setPagination(prev => ({
+        ...prev,
+        currentPage: response.data.data.current_page || 1,
+        totalPages: response.data.data.last_page || 1,
+        total: response.data.data.total || 0
+      }));
+    } else {
+      setMachines([]);
     }
-  };
+  } catch (error) {
+    console.error('Erreur lors du chargement des machines:', error);
+    setError('Erreur lors du chargement des machines');
+    setMachines([]);
+  } finally {
+    setLoading(false);
+  }
+};
 
   const loadComposants = async (machineId) => {
     if (!machineId) {
@@ -144,28 +188,57 @@ const Demandes = () => {
   };
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
-    setSubmitting(true);
+  e.preventDefault();
+  setSubmitting(true);
 
-    try {
-      const dataToSubmit = {
-        ...formData,
-        quantite_demandee: parseInt(formData.quantite_demandee) || 1,
-        budget_estime: formData.budget_estime ? parseFloat(formData.budget_estime) : null
-      };
-
-      await apiService.createDemande(dataToSubmit);
-      toast.success('Demande créée avec succès');
-      setShowModal(false);
-      resetForm();
-      loadDemandes();
-    } catch (error) {
-      console.error('Erreur lors de la création:', error);
-      toast.error('Erreur lors de la création de la demande');
-    } finally {
-      setSubmitting(false);
+  try {
+    // Validation côté client
+    if (formData.image) {
+      const validation = apiService.validateImage(formData.image);
+      if (!validation.valid) {
+        validation.errors.forEach(error => toast.error(error));
+        return;
+      }
     }
-  };
+
+    const dataToSubmit = {
+      ...formData,
+      specifications_techniques: formData.specifications_techniques || {}
+    };
+
+    console.log('Envoi des données:', {
+      ...dataToSubmit,
+      has_image: !!formData.image,
+      image_size: formData.image?.size
+    });
+
+    const response = await apiService.createMachine(dataToSubmit);
+    console.log('Réponse création machine:', response.data);
+    
+    toast.success('Machine créée avec succès');
+    setShowModal(false);
+    resetForm();
+    
+    // Forcer le rechargement immédiat avec un délai pour laisser le temps au serveur
+    setTimeout(() => {
+      loadMachines();
+    }, 500);
+    
+  } catch (error) {
+    console.error('Erreur lors de la création:', error);
+    
+    if (error.response?.status === 422 && error.response?.data?.errors) {
+      const errors = error.response.data.errors;
+      Object.values(errors).flat().forEach(err => {
+        toast.error(err);
+      });
+    } else {
+      toast.error(error.response?.data?.message || 'Erreur lors de la création de la machine');
+    }
+  } finally {
+    setSubmitting(false);
+  }
+};
 
   const resetForm = () => {
     setFormData({
