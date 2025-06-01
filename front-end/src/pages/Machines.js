@@ -1,6 +1,6 @@
-// src/pages/Machines.js
+// src/pages/Machines.js - Version complète avec affichage en cartes
 import React, { useState, useEffect } from 'react';
-import { Card, Row, Col, Table, Badge, Button, Modal, Form, Alert, Spinner, Pagination } from 'react-bootstrap';
+import { Card, Row, Col, Badge, Button, Modal, Form, Alert, Spinner, Pagination, Image, Dropdown } from 'react-bootstrap';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import apiService from '../services/apiService';
@@ -14,6 +14,7 @@ const Machines = () => {
   const [showModal, setShowModal] = useState(false);
   const [showStatutModal, setShowStatutModal] = useState(false);
   const [selectedMachine, setSelectedMachine] = useState(null);
+  const [viewMode, setViewMode] = useState('cards'); // 'cards' ou 'table'
   const [filters, setFilters] = useState({
     search: '',
     statut: '',
@@ -24,7 +25,7 @@ const Machines = () => {
     currentPage: 1,
     totalPages: 1,
     total: 0,
-    perPage: 15
+    perPage: 12 // Réduit pour les cartes
   });
   const [formData, setFormData] = useState({
     nom: '',
@@ -35,8 +36,10 @@ const Machines = () => {
     statut: 'actif',
     date_installation: '',
     derniere_maintenance: '',
-    specifications_techniques: {}
+    specifications_techniques: {},
+    image: null
   });
+  const [imagePreview, setImagePreview] = useState(null);
   const [statutData, setStatutData] = useState({
     statut: '',
     derniere_maintenance: ''
@@ -60,9 +63,7 @@ const Machines = () => {
         )
       };
 
-      console.log('Chargement des machines avec params:', params);
       const response = await apiService.getMachines(params);
-      console.log('Réponse API machines:', response.data);
       
       if (response.data && response.data.data) {
         setMachines(response.data.data.data || response.data.data);
@@ -110,11 +111,56 @@ const Machines = () => {
     }));
   };
 
+  // Gestion de l'image
+  const handleImageChange = async (e) => {
+    const file = e.target.files[0];
+    
+    if (!file) {
+      setFormData(prev => ({ ...prev, image: null }));
+      setImagePreview(null);
+      return;
+    }
+
+    // Validation de l'image
+    const validation = apiService.validateImage(file);
+    if (!validation.valid) {
+      toast.error(validation.errors.join(', '));
+      e.target.value = '';
+      return;
+    }
+
+    // Créer le preview
+    try {
+      const preview = await apiService.createImagePreview(file);
+      setImagePreview(preview);
+      setFormData(prev => ({ ...prev, image: file }));
+    } catch (error) {
+      toast.error('Erreur lors du chargement de l\'image');
+      console.error(error);
+    }
+  };
+
+  const removeImage = () => {
+    setFormData(prev => ({ ...prev, image: null }));
+    setImagePreview(null);
+    const fileInput = document.querySelector('input[type="file"]');
+    if (fileInput) fileInput.value = '';
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSubmitting(true);
 
     try {
+      // Validation côté client
+      if (formData.image) {
+        const validation = apiService.validateImage(formData.image);
+        if (!validation.valid) {
+          validation.errors.forEach(error => toast.error(error));
+          return;
+        }
+      }
+
       const dataToSubmit = {
         ...formData,
         specifications_techniques: formData.specifications_techniques || {}
@@ -127,7 +173,15 @@ const Machines = () => {
       loadMachines();
     } catch (error) {
       console.error('Erreur lors de la création:', error);
-      toast.error('Erreur lors de la création de la machine');
+      
+      if (error.response?.status === 422 && error.response?.data?.errors) {
+        const errors = error.response.data.errors;
+        Object.values(errors).flat().forEach(err => {
+          toast.error(err);
+        });
+      } else {
+        toast.error(error.response?.data?.message || 'Erreur lors de la création de la machine');
+      }
     } finally {
       setSubmitting(false);
     }
@@ -161,6 +215,21 @@ const Machines = () => {
     }
   };
 
+  const handleDeleteImage = async (machineId) => {
+    if (!window.confirm('Êtes-vous sûr de vouloir supprimer cette image ?')) {
+      return;
+    }
+
+    try {
+      await apiService.deleteMachineImage(machineId);
+      toast.success('Image supprimée avec succès');
+      loadMachines();
+    } catch (error) {
+      console.error('Erreur lors de la suppression:', error);
+      toast.error('Erreur lors de la suppression de l\'image');
+    }
+  };
+
   const openStatutModal = (machine) => {
     setSelectedMachine(machine);
     setStatutData({
@@ -180,8 +249,10 @@ const Machines = () => {
       statut: 'actif',
       date_installation: '',
       derniere_maintenance: '',
-      specifications_techniques: {}
+      specifications_techniques: {},
+      image: null
     });
+    setImagePreview(null);
   };
 
   const getStatutBadge = (statut) => {
@@ -214,7 +285,6 @@ const Machines = () => {
     const currentPage = pagination.currentPage;
     const totalPages = pagination.totalPages;
 
-    // Première page
     if (currentPage > 1) {
       items.push(
         <Pagination.Item key="first" onClick={() => handlePageChange(1)}>
@@ -223,7 +293,6 @@ const Machines = () => {
       );
     }
 
-    // Pages autour de la page actuelle
     for (let i = Math.max(1, currentPage - 2); i <= Math.min(totalPages, currentPage + 2); i++) {
       items.push(
         <Pagination.Item 
@@ -236,7 +305,6 @@ const Machines = () => {
       );
     }
 
-    // Dernière page
     if (currentPage < totalPages) {
       items.push(
         <Pagination.Item key="last" onClick={() => handlePageChange(totalPages)}>
@@ -260,6 +328,179 @@ const Machines = () => {
     );
   };
 
+  // Composant MachineCard
+  const MachineCard = ({ machine }) => (
+    <Col lg={4} md={6} className="mb-4">
+      <Card className="h-100 machine-card shadow-sm">
+        {/* Image de la machine */}
+        <div className="machine-image-container position-relative">
+          {machine.has_image && machine.image_url ? (
+            <>
+              <Card.Img 
+                variant="top" 
+                src={machine.image_url}
+                alt={machine.nom}
+                className="machine-image"
+                onError={(e) => {
+                  console.error('Erreur chargement image:', machine.image_url);
+                  e.target.style.display = 'none';
+                  e.target.nextSibling.style.display = 'flex';
+                }}
+              />
+              {/* Fallback en cas d'erreur */}
+              <div 
+                className="machine-image-placeholder position-absolute top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center bg-light"
+                style={{ display: 'none' }}
+              >
+                <div className="text-center text-muted">
+                  <i className="fas fa-image fa-3x mb-2"></i>
+                  <div>Image non disponible</div>
+                </div>
+              </div>
+            </>
+          ) : (
+            <div className="machine-image-placeholder d-flex align-items-center justify-content-center bg-light">
+              <div className="text-center text-muted">
+                <i className="fas fa-cogs fa-3x mb-2"></i>
+                <div>Aucune image</div>
+              </div>
+            </div>
+          )}
+
+          {/* Badge de statut */}
+          <div className="position-absolute top-0 end-0 m-2">
+            {getStatutBadge(machine.statut)}
+          </div>
+
+          {/* Bouton de suppression d'image (admin) */}
+          {user?.role === 'admin' && machine.has_image && (
+            <Button
+              variant="danger"
+              size="sm"
+              className="position-absolute machine-delete-image-btn"
+              style={{
+                top: '10px',
+                left: '10px',
+                width: '30px',
+                height: '30px',
+                padding: '0',
+                borderRadius: '50%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
+              onClick={() => handleDeleteImage(machine.id)}
+              title="Supprimer l'image"
+            >
+              <i className="fas fa-trash" style={{ fontSize: '12px' }}></i>
+            </Button>
+          )}
+        </div>
+
+        <Card.Body className="d-flex flex-column">
+          {/* Titre et numéro de série */}
+          <div className="mb-3">
+            <Card.Title className="h5 mb-1">{machine.nom}</Card.Title>
+            <Card.Subtitle className="text-primary fw-bold mb-2">
+              {machine.numero_serie}
+            </Card.Subtitle>
+          </div>
+
+          {/* Informations principales */}
+          <div className="machine-info mb-3 flex-grow-1">
+            <Row className="g-2">
+              <Col xs={6}>
+                <div className="info-item">
+                  <i className="fas fa-tag text-muted me-1"></i>
+                  <small className="text-muted">Modèle:</small>
+                  <div className="fw-semibold">{machine.modele}</div>
+                </div>
+              </Col>
+              <Col xs={6}>
+                <div className="info-item">
+                  <i className="fas fa-map-marker-alt text-muted me-1"></i>
+                  <small className="text-muted">Localisation:</small>
+                  <div className="fw-semibold">{machine.localisation || '-'}</div>
+                </div>
+              </Col>
+              <Col xs={6}>
+                <div className="info-item">
+                  <i className="fas fa-wrench text-muted me-1"></i>
+                  <small className="text-muted">Maintenance:</small>
+                  <div className="fw-semibold">{formatDate(machine.derniere_maintenance)}</div>
+                </div>
+              </Col>
+              <Col xs={6}>
+                <div className="info-item">
+                  <i className="fas fa-puzzle-piece text-muted me-1"></i>
+                  <small className="text-muted">Composants:</small>
+                  <div className="fw-semibold">
+                    <Badge bg="info">{machine.composants_count || 0}</Badge>
+                  </div>
+                </div>
+              </Col>
+            </Row>
+
+            {/* Description */}
+            {machine.description && (
+              <div className="mt-3">
+                <small className="text-muted">Description:</small>
+                <p className="small mb-0" style={{ 
+                  display: '-webkit-box',
+                  WebkitLineClamp: 2,
+                  WebkitBoxOrient: 'vertical',
+                  overflow: 'hidden'
+                }}>
+                  {machine.description}
+                </p>
+              </div>
+            )}
+          </div>
+
+          {/* Actions */}
+          <div className="d-flex gap-2">
+            <Button
+              as={Link}
+              to={`/machines/${machine.id}`}
+              variant="primary"
+              size="sm"
+              className="flex-grow-1"
+            >
+              <i className="fas fa-eye me-1"></i>
+              Voir détails
+            </Button>
+            
+            {user?.role === 'admin' && (
+              <Dropdown>
+                <Dropdown.Toggle 
+                  variant="outline-secondary" 
+                  size="sm"
+                  className="px-2"
+                >
+                  <i className="fas fa-ellipsis-v"></i>
+                </Dropdown.Toggle>
+                <Dropdown.Menu>
+                  <Dropdown.Item onClick={() => openStatutModal(machine)}>
+                    <i className="fas fa-edit me-2"></i>
+                    Modifier
+                  </Dropdown.Item>
+                  <Dropdown.Divider />
+                  <Dropdown.Item 
+                    onClick={() => {/* TODO: Planifier maintenance */}}
+                    className="text-warning"
+                  >
+                    <i className="fas fa-wrench me-2"></i>
+                    Maintenance
+                  </Dropdown.Item>
+                </Dropdown.Menu>
+              </Dropdown>
+            )}
+          </div>
+        </Card.Body>
+      </Card>
+    </Col>
+  );
+
   if (loading && machines.length === 0) {
     return (
       <div className="d-flex justify-content-center align-items-center" style={{ minHeight: '400px' }}>
@@ -272,6 +513,7 @@ const Machines = () => {
 
   return (
     <div className="machines-page">
+      {/* En-tête */}
       <Row className="mb-4">
         <Col>
           <div className="d-flex justify-content-between align-items-center">
@@ -284,16 +526,36 @@ const Machines = () => {
                 {pagination.total} machine(s) trouvée(s)
               </p>
             </div>
-            {user?.role === 'admin' && (
-              <Button 
-                variant="primary" 
-                onClick={() => setShowModal(true)}
-                className="d-flex align-items-center"
-              >
-                <i className="fas fa-plus me-2"></i>
-                Nouvelle Machine
-              </Button>
-            )}
+            <div className="d-flex gap-2">
+              {/* Boutons de vue */}
+              <div className="btn-group" role="group">
+                <Button
+                  variant={viewMode === 'cards' ? 'primary' : 'outline-primary'}
+                  size="sm"
+                  onClick={() => setViewMode('cards')}
+                >
+                  <i className="fas fa-th-large"></i>
+                </Button>
+                <Button
+                  variant={viewMode === 'table' ? 'primary' : 'outline-primary'}
+                  size="sm"
+                  onClick={() => setViewMode('table')}
+                >
+                  <i className="fas fa-list"></i>
+                </Button>
+              </div>
+
+              {user?.role === 'admin' && (
+                <Button 
+                  variant="primary" 
+                  onClick={() => setShowModal(true)}
+                  className="d-flex align-items-center"
+                >
+                  <i className="fas fa-plus me-2"></i>
+                  Nouvelle Machine
+                </Button>
+              )}
+            </div>
           </div>
         </Col>
       </Row>
@@ -354,9 +616,9 @@ const Machines = () => {
       </Card>
 
       {/* Liste des machines */}
-      <Card>
-        <Card.Body className="p-0">
-          {machines.length === 0 ? (
+      {machines.length === 0 ? (
+        <Card>
+          <Card.Body>
             <div className="text-center py-5">
               <i className="fas fa-cogs fa-3x text-muted mb-3"></i>
               <h4>Aucune machine trouvée</h4>
@@ -378,100 +640,103 @@ const Machines = () => {
                 </Button>
               )}
             </div>
+          </Card.Body>
+        </Card>
+      ) : (
+        <>
+          {/* Affichage en cartes */}
+          {viewMode === 'cards' ? (
+            <Row>
+              {machines.map((machine) => (
+                <MachineCard key={machine.id} machine={machine} />
+              ))}
+            </Row>
           ) : (
-            <>
-              <div className="table-responsive">
-                <Table hover className="mb-0">
-                  <thead>
-                    <tr>
-                      <th>Nom</th>
-                      <th>Numéro de série</th>
-                      <th>Modèle</th>
-                      <th>Localisation</th>
-                      <th>Statut</th>
-                      <th>Dernière maintenance</th>
-                      <th>Composants</th>
-                      <th>Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {machines.map((machine) => (
-                      <tr key={machine.id}>
-                        <td>
-                          <div className="fw-bold">{machine.nom}</div>
-                          {machine.description && (
-                            <small className="text-muted">
-                              {machine.description.length > 50 
-                                ? `${machine.description.substring(0, 50)}...`
-                                : machine.description
-                              }
-                            </small>
-                          )}
-                        </td>
-                        <td>
-                          <span className="fw-bold text-primary">
-                            {machine.numero_serie}
-                          </span>
-                        </td>
-                        <td>{machine.modele}</td>
-                        <td>{machine.localisation || '-'}</td>
-                        <td>
-                          {getStatutBadge(machine.statut)}
-                        </td>
-                        <td>
-                          {formatDate(machine.derniere_maintenance)}
-                        </td>
-                        <td>
-                          <Badge bg="info">
-                            {machine.composants_count || 0}
-                          </Badge>
-                        </td>
-                        <td>
-                          <div className="d-flex gap-1">
-                            <Button
-                              as={Link}
-                              to={`/machines/${machine.id}`}
-                              variant="outline-primary"
-                              size="sm"
-                              title="Voir les détails"
-                            >
-                              <i className="fas fa-eye"></i>
-                            </Button>
-                            
-                            {user?.role === 'admin' && (
-                              <>
+            /* Affichage en tableau (version simplifiée) */
+            <Card>
+              <Card.Body className="p-0">
+                <div className="table-responsive">
+                  <table className="table table-hover mb-0">
+                    <thead>
+                      <tr>
+                        <th>Image</th>
+                        <th>Nom</th>
+                        <th>Numéro de série</th>
+                        <th>Statut</th>
+                        <th>Localisation</th>
+                        <th>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {machines.map((machine) => (
+                        <tr key={machine.id}>
+                          <td>
+                            {machine.has_image ? (
+                              <img
+                                src={machine.image_url}
+                                alt={machine.nom}
+                                width="50"
+                                height="50"
+                                className="rounded"
+                                style={{ objectFit: 'cover' }}
+                              />
+                            ) : (
+                              <div className="bg-light rounded d-flex align-items-center justify-content-center" style={{ width: '50px', height: '50px' }}>
+                                <i className="fas fa-image text-muted"></i>
+                              </div>
+                            )}
+                          </td>
+                          <td>
+                            <div className="fw-bold">{machine.nom}</div>
+                            <small className="text-muted">{machine.modele}</small>
+                          </td>
+                          <td>
+                            <span className="fw-bold text-primary">{machine.numero_serie}</span>
+                          </td>
+                          <td>{getStatutBadge(machine.statut)}</td>
+                          <td>{machine.localisation || '-'}</td>
+                          <td>
+                            <div className="d-flex gap-1">
+                              <Button
+                                as={Link}
+                                to={`/machines/${machine.id}`}
+                                variant="outline-primary"
+                                size="sm"
+                              >
+                                <i className="fas fa-eye"></i>
+                              </Button>
+                              {user?.role === 'admin' && (
                                 <Button
                                   variant="outline-warning"
                                   size="sm"
-                                  title="Modifier le statut"
                                   onClick={() => openStatutModal(machine)}
                                 >
                                   <i className="fas fa-edit"></i>
                                 </Button>
-                              </>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </Table>
-              </div>
-              
-              {/* Pagination */}
-              {pagination.totalPages > 1 && (
-                <div className="d-flex justify-content-between align-items-center p-3 border-top">
-                  <div className="text-muted">
-                    Affichage de {((pagination.currentPage - 1) * pagination.perPage) + 1} à{' '}
-                    {Math.min(pagination.currentPage * pagination.perPage, pagination.total)} sur {pagination.total} machines
-                  </div>
-                  {renderPagination()}
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
-              )}
-            </>
+              </Card.Body>
+            </Card>
           )}
-        </Card.Body>
-      </Card>
+
+          {/* Pagination */}
+          {pagination.totalPages > 1 && (
+            <div className="d-flex justify-content-between align-items-center mt-4">
+              <div className="text-muted">
+                Affichage de {((pagination.currentPage - 1) * pagination.perPage) + 1} à{' '}
+                {Math.min(pagination.currentPage * pagination.perPage, pagination.total)} sur {pagination.total} machines
+              </div>
+              {renderPagination()}
+            </div>
+          )}
+        </>
+      )}
 
       {/* Modal de création */}
       <Modal show={showModal} onHide={() => setShowModal(false)} size="lg">
@@ -484,6 +749,53 @@ const Machines = () => {
         <Form onSubmit={handleSubmit}>
           <Modal.Body>
             <Row className="g-3">
+              {/* Upload d'image */}
+              <Col md={12}>
+                <Form.Group>
+                  <Form.Label>Image de la machine</Form.Label>
+                  <div className="d-flex align-items-start gap-3">
+                    <div className="flex-grow-1">
+                      <Form.Control
+                        type="file"
+                        accept="image/*"
+                        onChange={handleImageChange}
+                        className="mb-2"
+                      />
+                      <Form.Text className="text-muted">
+                        Formats acceptés: JPG, PNG, GIF. Taille max: 2MB
+                      </Form.Text>
+                    </div>
+                    {imagePreview && (
+                      <div className="position-relative">
+                        <Image
+                          src={imagePreview}
+                          alt="Aperçu"
+                          width="100"
+                          height="100"
+                          className="rounded object-cover border"
+                          style={{ objectFit: 'cover' }}
+                        />
+                        <Button
+                          variant="danger"
+                          size="sm"
+                          className="position-absolute top-0 end-0 p-1"
+                          style={{ 
+                            transform: 'translate(25%, -25%)',
+                            width: '25px',
+                            height: '25px',
+                            fontSize: '12px'
+                          }}
+                          onClick={removeImage}
+                          title="Supprimer l'image"
+                        >
+                          <i className="fas fa-times"></i>
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                </Form.Group>
+              </Col>
+
               <Col md={6}>
                 <Form.Group>
                   <Form.Label>Nom <span className="text-danger">*</span></Form.Label>
@@ -663,6 +975,305 @@ const Machines = () => {
           </Modal.Footer>
         </Form>
       </Modal>
+
+      {/* Styles CSS personnalisés */}
+      <style jsx>{`
+        .machine-card {
+          transition: all 0.3s ease;
+          border-radius: 12px;
+          overflow: hidden;
+          border: none;
+        }
+
+        .machine-card:hover {
+          transform: translateY(-4px);
+          box-shadow: 0 8px 25px rgba(0,0,0,0.15) !important;
+        }
+
+        .machine-image-container {
+          height: 200px;
+          overflow: hidden;
+          background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+        }
+
+        .machine-image {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+          transition: transform 0.3s ease;
+        }
+
+        .machine-card:hover .machine-image {
+          transform: scale(1.05);
+        }
+
+        .machine-image-placeholder {
+          height: 200px;
+          background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+          border-bottom: 1px solid rgba(0,0,0,0.125);
+        }
+
+        .machine-delete-image-btn {
+          opacity: 0;
+          transition: opacity 0.3s ease;
+        }
+
+        .machine-card:hover .machine-delete-image-btn {
+          opacity: 1;
+        }
+
+        .info-item {
+          margin-bottom: 0.5rem;
+        }
+
+        .info-item .fw-semibold {
+          font-size: 0.9rem;
+          color: #495057;
+        }
+
+        .info-item small {
+          font-size: 0.75rem;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+        }
+
+        .card-title {
+          color: #2c3e50;
+          font-weight: 600;
+        }
+
+        .card-subtitle {
+          font-size: 0.9rem;
+          font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+        }
+
+        .btn-group .btn {
+          border-radius: 0;
+        }
+
+        .btn-group .btn:first-child {
+          border-top-left-radius: 0.375rem;
+          border-bottom-left-radius: 0.375rem;
+        }
+
+        .btn-group .btn:last-child {
+          border-top-right-radius: 0.375rem;
+          border-bottom-right-radius: 0.375rem;
+        }
+
+        .table th {
+          border-top: none;
+          border-bottom: 2px solid #e9ecef;
+          font-weight: 600;
+          color: #495057;
+          background-color: #f8f9fa;
+          font-size: 0.9rem;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+        }
+
+        .table td {
+          border-top: 1px solid #f1f3f4;
+          vertical-align: middle;
+        }
+
+        .table tbody tr:hover {
+          background-color: #f8f9fa;
+        }
+
+        .badge {
+          font-size: 0.75rem;
+          padding: 0.35em 0.65em;
+          border-radius: 0.375rem;
+          font-weight: 500;
+          text-transform: capitalize;
+        }
+
+        .alert {
+          border-radius: 10px;
+          border: none;
+          box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        }
+
+        .pagination .page-link {
+          border-radius: 8px;
+          margin: 0 0.125rem;
+          border: 1px solid #dee2e6;
+          color: #007bff;
+          transition: all 0.2s ease;
+        }
+
+        .pagination .page-link:hover {
+          background-color: #007bff;
+          border-color: #007bff;
+          color: white;
+          transform: translateY(-1px);
+        }
+
+        .pagination .page-item.active .page-link {
+          background-color: #007bff;
+          border-color: #007bff;
+        }
+
+        .dropdown-menu {
+          border: none;
+          border-radius: 8px;
+          box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+          padding: 0.5rem 0;
+        }
+
+        .dropdown-item {
+          padding: 0.5rem 1rem;
+          transition: all 0.2s ease;
+          border-radius: 0;
+        }
+
+        .dropdown-item:hover {
+          background-color: #f8f9fa;
+          color: #007bff;
+        }
+
+        .form-control:focus {
+          border-color: #007bff;
+          box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+        }
+
+        .btn-primary {
+          background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
+          border: none;
+          box-shadow: 0 2px 8px rgba(0, 123, 255, 0.3);
+        }
+
+        .btn-primary:hover {
+          transform: translateY(-1px);
+          box-shadow: 0 4px 15px rgba(0, 123, 255, 0.4);
+        }
+
+        .btn-primary:active {
+          transform: translateY(0);
+        }
+
+        .btn-outline-primary:hover {
+          background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
+          border-color: transparent;
+        }
+
+        @media (max-width: 768px) {
+          .machine-card {
+            margin-bottom: 1rem;
+          }
+          
+          .machine-image-container {
+            height: 150px;
+          }
+          
+          .card-title {
+            font-size: 1.1rem;
+          }
+          
+          .info-item {
+            margin-bottom: 0.25rem;
+          }
+          
+          .btn-group .btn {
+            padding: 0.25rem 0.5rem;
+            font-size: 0.875rem;
+          }
+        }
+
+        @media (max-width: 576px) {
+          .machine-image-container {
+            height: 120px;
+          }
+          
+          .card-body {
+            padding: 1rem;
+          }
+          
+          .info-item .fw-semibold {
+            font-size: 0.8rem;
+          }
+          
+          .info-item small {
+            font-size: 0.7rem;
+          }
+        }
+
+        /* Animation d'apparition des cartes */
+        @keyframes fadeInUp {
+          from {
+            opacity: 0;
+            transform: translateY(20px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+
+        .machine-card {
+          animation: fadeInUp 0.5s ease-out;
+        }
+
+        /* Animation au chargement */
+        .machine-card:nth-child(1) { animation-delay: 0.1s; }
+        .machine-card:nth-child(2) { animation-delay: 0.2s; }
+        .machine-card:nth-child(3) { animation-delay: 0.3s; }
+        .machine-card:nth-child(4) { animation-delay: 0.4s; }
+        .machine-card:nth-child(5) { animation-delay: 0.5s; }
+        .machine-card:nth-child(6) { animation-delay: 0.6s; }
+
+        /* Styles pour le mode sombre (optionnel) */
+        @media (prefers-color-scheme: dark) {
+          .machine-image-placeholder {
+            background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
+          }
+          
+          .card-title {
+            color: #ecf0f1;
+          }
+          
+          .info-item .fw-semibold {
+            color: #bdc3c7;
+          }
+        }
+
+        /* Styles pour l'impression */
+        @media print {
+          .machine-card {
+            break-inside: avoid;
+            box-shadow: none !important;
+            border: 1px solid #ddd !important;
+          }
+          
+          .btn, .dropdown {
+            display: none !important;
+          }
+          
+          .machine-image-container {
+            height: auto;
+          }
+        }
+
+        /* Accessibilité */
+        .machine-card:focus-within {
+          outline: 2px solid #007bff;
+          outline-offset: 2px;
+        }
+
+        .btn:focus {
+          outline: 2px solid #007bff;
+          outline-offset: 2px;
+        }
+
+        /* Styles pour les écrans haute résolution */
+        @media (min-resolution: 2dppx) {
+          .machine-image {
+            image-rendering: -webkit-optimize-contrast;
+            image-rendering: crisp-edges;
+          }
+        }
+      `}</style>
     </div>
   );
 };

@@ -62,23 +62,33 @@ Route::middleware('auth:sanctum')->group(function () {
     });
 
     // === MACHINES ===
-    Route::prefix('machines')->group(function () {
-        Route::get('/', [MachineController::class, 'index']);
-        Route::get('/actives', [MachineController::class, 'getActives']);
-        Route::get('/statistiques', [MachineController::class, 'statistiques']);
-        Route::get('/{id}', [MachineController::class, 'show']);
-        Route::get('/{id}/composants', [MachineController::class, 'getComposants']);
-        Route::get('/{id}/demandes', [MachineController::class, 'getDemandes']);
+    
+
+// ... (routes existantes restent inchangées)
+
+// === MACHINES ===
+Route::prefix('machines')->group(function () {
+    Route::get('/', [MachineController::class, 'index']);
+    Route::get('/actives', [MachineController::class, 'getActives']);
+    Route::get('/statistiques', [MachineController::class, 'statistiques']);
+    Route::get('/{id}', [MachineController::class, 'show']);
+    Route::get('/{id}/composants', [MachineController::class, 'getComposants']);
+    Route::get('/{id}/demandes', [MachineController::class, 'getDemandes']);
+    
+    // Routes admin uniquement
+    Route::middleware('role:admin')->group(function () {
+        Route::post('/', [MachineController::class, 'store']);
+        Route::put('/{id}', [MachineController::class, 'update']);
+        Route::delete('/{id}', [MachineController::class, 'destroy']);
+        Route::patch('/{id}/statut', [MachineController::class, 'updateStatut']);
+        Route::patch('/{id}/maintenance', [MachineController::class, 'updateMaintenance']);
         
-        // Routes admin uniquement
-        Route::middleware('role:admin')->group(function () {
-            Route::post('/', [MachineController::class, 'store']);
-            Route::put('/{id}', [MachineController::class, 'update']);
-            Route::delete('/{id}', [MachineController::class, 'destroy']);
-            Route::patch('/{id}/statut', [MachineController::class, 'updateStatut']);
-            Route::patch('/{id}/maintenance', [MachineController::class, 'updateMaintenance']);
-        });
+        // Nouvelle route pour supprimer l'image
+        Route::delete('/{id}/image', [MachineController::class, 'deleteImage']);
     });
+});
+
+// ... (reste des routes inchangées)
 
     // === COMPOSANTS ===
     Route::prefix('composants')->group(function () {
@@ -232,7 +242,7 @@ Route::get('/test', function () {
 Route::get('/health', function () {
     try {
         // Test de connexion à la base de données
-        \DB::connection()->getPdo();
+        DB::connection()->getPdo();
         
         return response()->json([
             'status' => 'healthy',

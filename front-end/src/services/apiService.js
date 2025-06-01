@@ -1,4 +1,4 @@
-// src/services/apiService.js - Version complète mise à jour
+// src/services/apiService.js - Version complète mise à jour avec gestion d'images
 import axios from 'axios';
 import { toast } from 'react-toastify';
 
@@ -202,7 +202,7 @@ class ApiService {
   }
 
   // ===================================
-  // MACHINES
+  // MACHINES (AVEC GESTION D'IMAGES)
   // ===================================
 
   async getMachines(params = {}) {
@@ -214,10 +214,35 @@ class ApiService {
   }
 
   async createMachine(machineData) {
+    // Si machineData contient une image, utiliser FormData
+    if (machineData.image) {
+      const formData = new FormData();
+      Object.keys(machineData).forEach(key => {
+        if (key === 'specifications_techniques' && typeof machineData[key] === 'object') {
+          formData.append(key, JSON.stringify(machineData[key]));
+        } else {
+          formData.append(key, machineData[key]);
+        }
+      });
+      return this.uploadFile('/machines', formData);
+    }
     return this.post('/machines', machineData);
   }
 
   async updateMachine(id, machineData) {
+    // Si machineData contient une image, utiliser FormData avec _method PUT
+    if (machineData.image) {
+      const formData = new FormData();
+      formData.append('_method', 'PUT'); // Laravel method spoofing
+      Object.keys(machineData).forEach(key => {
+        if (key === 'specifications_techniques' && typeof machineData[key] === 'object') {
+          formData.append(key, JSON.stringify(machineData[key]));
+        } else {
+          formData.append(key, machineData[key]);
+        }
+      });
+      return this.uploadFile(`/machines/${id}`, formData);
+    }
     return this.put(`/machines/${id}`, machineData);
   }
 
@@ -247,6 +272,11 @@ class ApiService {
 
   async getStatistiquesMachines() {
     return this.get('/machines/statistiques');
+  }
+
+  // Nouvelle méthode pour supprimer l'image d'une machine
+  async deleteMachineImage(id) {
+    return this.delete(`/machines/${id}/image`);
   }
 
   // ===================================
@@ -828,7 +858,58 @@ class ApiService {
   }
 
   // ===================================
-  // METHODES UTILITAIRES
+  // METHODES UTILITAIRES POUR IMAGES
+  // ===================================
+
+  // Méthode utilitaire pour gérer les uploads avec preview
+  createImagePreview(file) {
+    return new Promise((resolve, reject) => {
+      if (!file || !file.type.startsWith('image/')) {
+        reject(new Error('Le fichier doit être une image'));
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = (e) => resolve(e.target.result);
+      reader.onerror = (e) => reject(e);
+      reader.readAsDataURL(file);
+    });
+  }
+
+  // Validation d'image côté client
+  validateImage(file) {
+    const errors = [];
+    
+    if (!file) {
+      return { valid: true, errors: [] };
+    }
+
+    // Vérifier le type
+    if (!file.type.startsWith('image/')) {
+      errors.push('Le fichier doit être une image');
+    }
+
+    // Vérifier les extensions autorisées
+    const allowedExtensions = ['jpg', 'jpeg', 'png', 'gif'];
+    const extension = file.name.split('.').pop().toLowerCase();
+    if (!allowedExtensions.includes(extension)) {
+      errors.push('Format non autorisé. Utilisez: JPG, PNG, GIF');
+    }
+
+    // Vérifier la taille (2MB max)
+    const maxSize = 2 * 1024 * 1024; // 2MB
+    if (file.size > maxSize) {
+      errors.push('L\'image ne doit pas dépasser 2MB');
+    }
+
+    return {
+      valid: errors.length === 0,
+      errors: errors
+    };
+  }
+
+  // ===================================
+  // METHODES UTILITAIRES GENERALES
   // ===================================
 
   // Méthode pour formater les erreurs de validation
@@ -892,8 +973,397 @@ class ApiService {
   async testConnection() {
     return this.get('/test');
   }
+
+  // ===================================
+  // METHODES UTILITAIRES POUR IMAGES (AVANCEES)
+  // ===================================
+
+  // Redimensionner une image côté client
+  resizeImage(file, maxWidth = 800, maxHeight = 600, quality = 0.8) {
+    return new Promise((resolve) => {
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      const img = new Image();
+
+      img.onload = () => {
+        // Calculer les nouvelles dimensions
+        let { width, height } = img;
+        
+        if (width > height) {
+          if (width > maxWidth) {
+            height = (height * maxWidth) / width;
+            width = maxWidth;
+          }
+        } else {
+          if (height > maxHeight) {
+            width = (width * maxHeight) / height;
+            height = maxHeight;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+
+        // Dessiner l'image redimensionnée
+        ctx.drawImage(img, 0, 0, width, height);
+
+        // Convertir en blob
+        canvas.toBlob(resolve, file.type, quality);
+      };
+
+      img.src = URL.createObjectURL(file);
+    });
+  }
+
+  // Compresser une image
+  async compressImage(file, quality = 0.8) {
+    if (!file.type.startsWith('image/')) {
+      return file;
+    }
+
+    try {
+      const compressedBlob = await this.resizeImage(file, 1200, 1200, quality);
+      return new File([compressedBlob], file.name, {
+        type: file.type,
+        lastModified: Date.now()
+      });
+    } catch (error) {
+      console.error('Erreur lors de la compression:', error);
+      return file; // Retourner le fichier original en cas d'erreur
+    }
+  }
+
+  // Méthode pour convertir blob en File
+  blobToFile(blob, fileName) {
+    return new File([blob], fileName, {
+      type: blob.type,
+      lastModified: Date.now()
+    });
+  }
+
+  // Méthode pour obtenir les métadonnées d'une image
+  getImageMetadata(file) {
+    return new Promise((resolve, reject) => {
+      if (!file.type.startsWith('image/')) {
+        reject(new Error('Le fichier doit être une image'));
+        return;
+      }
+
+      const img = new Image();
+      img.onload = () => {
+        resolve({
+          width: img.naturalWidth,
+          height: img.naturalHeight,
+          size: file.size,
+          type: file.type,
+          name: file.name,
+          lastModified: file.lastModified
+        });
+        URL.revokeObjectURL(img.src); // Nettoyer la mémoire
+      };
+      img.onerror = reject;
+      img.src = URL.createObjectURL(file);
+    });
+  }
+
+  // ===================================
+  // METHODES UTILITAIRES POUR FORMATS
+  // ===================================
+
+  // Formater la taille de fichier
+  formatFileSize(bytes) {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  }
+
+  // Formater une date
+  formatDate(date, locale = 'fr-FR') {
+    if (!date) return '-';
+    const d = new Date(date);
+    return d.toLocaleDateString(locale);
+  }
+
+  // Formater une date avec heure
+  formatDateTime(date, locale = 'fr-FR') {
+    if (!date) return '-';
+    const d = new Date(date);
+    return d.toLocaleString(locale);
+  }
+
+  // Formater un prix
+  formatPrice(price, currency = 'EUR', locale = 'fr-FR') {
+    if (!price) return '-';
+    return new Intl.NumberFormat(locale, {
+      style: 'currency',
+      currency: currency
+    }).format(price);
+  }
+
+  // ===================================
+  // METHODES UTILITAIRES POUR VALIDATION
+  // ===================================
+
+  // Valider un email
+  validateEmail(email) {
+    const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return re.test(email);
+  }
+
+  // Valider un numéro de téléphone français
+  validatePhoneFR(phone) {
+    const re = /^(?:(?:\+|00)33|0)\s*[1-9](?:[\s.-]*\d{2}){4}$/;
+    return re.test(phone);
+  }
+
+  // Valider la force d'un mot de passe
+  validatePasswordStrength(password) {
+    const checks = {
+      length: password.length >= 8,
+      lowercase: /[a-z]/.test(password),
+      uppercase: /[A-Z]/.test(password),
+      number: /\d/.test(password),
+      special: /[!@#$%^&*(),.?":{}|<>]/.test(password)
+    };
+
+    const score = Object.values(checks).filter(Boolean).length;
+    
+    return {
+      score,
+      strength: score < 2 ? 'faible' : score < 4 ? 'moyen' : 'fort',
+      checks
+    };
+  }
+
+  // ===================================
+  // METHODES UTILITAIRES POUR CACHE
+  // ===================================
+
+  // Cache simple en mémoire
+  _cache = new Map();
+
+  // Mettre en cache
+  setCache(key, data, ttl = 300000) { // TTL par défaut: 5 minutes
+    const expiry = Date.now() + ttl;
+    this._cache.set(key, { data, expiry });
+  }
+
+  // Récupérer du cache
+  getCache(key) {
+    const cached = this._cache.get(key);
+    if (!cached) return null;
+    
+    if (Date.now() > cached.expiry) {
+      this._cache.delete(key);
+      return null;
+    }
+    
+    return cached.data;
+  }
+
+  // Vider le cache
+  clearCache(key = null) {
+    if (key) {
+      this._cache.delete(key);
+    } else {
+      this._cache.clear();
+    }
+  }
+
+  // Méthode GET avec cache
+  async getCached(url, config = {}, ttl = 300000) {
+    const cacheKey = `${url}_${JSON.stringify(config)}`;
+    const cached = this.getCache(cacheKey);
+    
+    if (cached) {
+      return cached;
+    }
+    
+    const response = await this.get(url, config);
+    this.setCache(cacheKey, response, ttl);
+    return response;
+  }
+
+  // ===================================
+  // METHODES POUR GESTION D'ERREURS AVANCEE
+  // ===================================
+
+  // Retry automatique pour les requêtes qui échouent
+  async retryRequest(requestFn, maxRetries = 3, delay = 1000) {
+    for (let i = 0; i < maxRetries; i++) {
+      try {
+        return await requestFn();
+      } catch (error) {
+        if (i === maxRetries - 1) throw error;
+        
+        // Attendre avant de réessayer
+        await new Promise(resolve => setTimeout(resolve, delay * (i + 1)));
+      }
+    }
+  }
+
+  // ===================================
+  // METHODES POUR BATCH OPERATIONS
+  // ===================================
+
+  // Traitement par lots
+  async batchProcess(items, processor, batchSize = 10, delay = 100) {
+    const results = [];
+    
+    for (let i = 0; i < items.length; i += batchSize) {
+      const batch = items.slice(i, i + batchSize);
+      const batchPromises = batch.map(processor);
+      const batchResults = await Promise.allSettled(batchPromises);
+      
+      results.push(...batchResults);
+      
+      // Délai entre les lots pour éviter de surcharger le serveur
+      if (i + batchSize < items.length) {
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
+    
+    return results;
+  }
+
+  // ===================================
+  // METHODES POUR MONITORING
+  // ===================================
+
+  // Mesurer le temps de réponse
+  async measureResponseTime(requestFn) {
+    const start = performance.now();
+    try {
+      const result = await requestFn();
+      const duration = performance.now() - start;
+      console.log(`Requête exécutée en ${duration.toFixed(2)}ms`);
+      return { result, duration };
+    } catch (error) {
+      const duration = performance.now() - start;
+      console.error(`Requête échouée après ${duration.toFixed(2)}ms:`, error);
+      throw error;
+    }
+  }
+
+  // ===================================
+  // METHODES POUR WEBSOCKETS (SI NECESSAIRE)
+  // ===================================
+
+  // Initialiser une connexion WebSocket
+  initWebSocket(url) {
+    this.ws = new WebSocket(url);
+    
+    this.ws.onopen = () => {
+      console.log('WebSocket connecté');
+    };
+    
+    this.ws.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        this.handleWebSocketMessage(data);
+      } catch (error) {
+        console.error('Erreur parsing WebSocket message:', error);
+      }
+    };
+    
+    this.ws.onclose = () => {
+      console.log('WebSocket déconnecté');
+      // Tentative de reconnexion après 5 secondes
+      setTimeout(() => this.initWebSocket(url), 5000);
+    };
+    
+    this.ws.onerror = (error) => {
+      console.error('Erreur WebSocket:', error);
+    };
+  }
+
+  // Gérer les messages WebSocket
+  handleWebSocketMessage(data) {
+    switch (data.type) {
+      case 'notification':
+        toast.info(data.message);
+        break;
+      case 'alert':
+        toast.warning(data.message);
+        break;
+      case 'error':
+        toast.error(data.message);
+        break;
+      default:
+        console.log('Message WebSocket reçu:', data);
+    }
+  }
+
+  // Envoyer un message via WebSocket
+  sendWebSocketMessage(data) {
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      this.ws.send(JSON.stringify(data));
+    } else {
+      console.warn('WebSocket non connecté');
+    }
+  }
+
+  // Fermer la connexion WebSocket
+  closeWebSocket() {
+    if (this.ws) {
+      this.ws.close();
+      this.ws = null;
+    }
+  }
+
+  // ===================================
+  // METHODES POUR DEBUGGING
+  // ===================================
+
+  // Activer/désactiver le mode debug
+  setDebugMode(enabled) {
+    this.debugMode = enabled;
+    if (enabled) {
+      console.log('Mode debug activé pour apiService');
+    }
+  }
+
+  // Logger pour debug
+  debugLog(...args) {
+    if (this.debugMode) {
+      console.log('[ApiService Debug]', ...args);
+    }
+  }
+
+  // ===================================
+  // METHODES POUR CONFIGURATION DYNAMIQUE
+  // ===================================
+
+  // Mettre à jour la configuration
+  updateConfig(newConfig) {
+    if (newConfig.baseURL) {
+      this.api.defaults.baseURL = newConfig.baseURL;
+    }
+    if (newConfig.timeout) {
+      this.api.defaults.timeout = newConfig.timeout;
+    }
+    if (newConfig.headers) {
+      Object.assign(this.api.defaults.headers, newConfig.headers);
+    }
+  }
+
+  // Obtenir la configuration actuelle
+  getConfig() {
+    return {
+      baseURL: this.api.defaults.baseURL,
+      timeout: this.api.defaults.timeout,
+      headers: this.api.defaults.headers
+    };
+  }
 }
 
 // Créer et exporter une instance unique
 const apiService = new ApiService();
+
+// Exporter aussi la classe pour les tests ou instances multiples
+export { ApiService };
+
+// Export par défaut de l'instance
 export default apiService;
