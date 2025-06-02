@@ -1,4 +1,4 @@
-// src/pages/Demandes.js
+// src/pages/Demandes.js - Version mise à jour avec accepter/refuser
 import React, { useState, useEffect } from "react";
 import {
   Card,
@@ -25,6 +25,14 @@ const Demandes = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [showModal, setShowModal] = useState(false);
+  
+  // Nouveaux states pour accepter/refuser
+  const [showAcceptModal, setShowAcceptModal] = useState(false);
+  const [showRefuseModal, setShowRefuseModal] = useState(false);
+  const [selectedDemande, setSelectedDemande] = useState(null);
+  const [commentaire, setCommentaire] = useState("");
+  const [actionLoading, setActionLoading] = useState(false);
+  
   const [machines, setMachines] = useState([]);
   const [composants, setComposants] = useState([]);
   const [filters, setFilters] = useState({
@@ -72,9 +80,7 @@ const Demandes = () => {
         ),
       };
 
-      console.log("Chargement des demandes avec params:", params);
       const response = await apiService.getDemandes(params);
-      console.log("Réponse API demandes:", response.data);
 
       if (response.data && response.data.data) {
         setDemandes(response.data.data.data || response.data.data);
@@ -98,54 +104,12 @@ const Demandes = () => {
 
   const loadMachines = async () => {
     try {
-      setLoading(true);
-      setError(null);
-
-      const params = {
-        page: pagination.currentPage,
-        per_page: pagination.perPage,
-        // Ajouter un timestamp pour éviter le cache
-        _t: Date.now(),
-        ...Object.fromEntries(
-          Object.entries(filters).filter(([key, value]) => value !== "")
-        ),
-      };
-
-      console.log("Chargement des machines avec params:", params);
-      const response = await apiService.getMachines(params);
-      console.log("Réponse API machines:", response.data);
-
+      const response = await apiService.getMachines({ per_page: 100 });
       if (response.data && response.data.data) {
-        const machinesData = response.data.data.data || response.data.data;
-
-        // Debug des URLs d'images
-        console.group("Debug Images après chargement");
-        machinesData.forEach((machine) => {
-          console.log(`Machine ${machine.id} (${machine.nom}):`, {
-            has_image: machine.has_image,
-            image_url: machine.image_url,
-            image_path: machine.image_path,
-            url_complete: machine.image_url,
-          });
-        });
-        console.groupEnd();
-
-        setMachines(machinesData);
-        setPagination((prev) => ({
-          ...prev,
-          currentPage: response.data.data.current_page || 1,
-          totalPages: response.data.data.last_page || 1,
-          total: response.data.data.total || 0,
-        }));
-      } else {
-        setMachines([]);
+        setMachines(response.data.data.data || response.data.data);
       }
     } catch (error) {
       console.error("Erreur lors du chargement des machines:", error);
-      setError("Erreur lors du chargement des machines");
-      setMachines([]);
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -161,6 +125,60 @@ const Demandes = () => {
     } catch (error) {
       console.error("Erreur lors du chargement des composants:", error);
       setComposants([]);
+    }
+  };
+
+  // Nouvelles fonctions pour accepter/refuser
+  const handleAccepter = (demande) => {
+    setSelectedDemande(demande);
+    setCommentaire("");
+    setShowAcceptModal(true);
+  };
+
+  const handleRefuser = (demande) => {
+    setSelectedDemande(demande);
+    setCommentaire("");
+    setShowRefuseModal(true);
+  };
+
+  const confirmerAcceptation = async () => {
+    if (!selectedDemande) return;
+
+    setActionLoading(true);
+    try {
+      await apiService.accepterDemande(selectedDemande.id, commentaire);
+      toast.success("Demande acceptée avec succès");
+      setShowAcceptModal(false);
+      setSelectedDemande(null);
+      setCommentaire("");
+      loadDemandes(); // Recharger la liste
+    } catch (error) {
+      console.error("Erreur lors de l'acceptation:", error);
+      toast.error("Erreur lors de l'acceptation de la demande");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const confirmerRefus = async () => {
+    if (!selectedDemande || !commentaire.trim()) {
+      toast.error("Le motif de refus est obligatoire");
+      return;
+    }
+
+    setActionLoading(true);
+    try {
+      await apiService.refuserDemande(selectedDemande.id, commentaire);
+      toast.success("Demande refusée avec succès");
+      setShowRefuseModal(false);
+      setSelectedDemande(null);
+      setCommentaire("");
+      loadDemandes(); // Recharger la liste
+    } catch (error) {
+      console.error("Erreur lors du refus:", error);
+      toast.error("Erreur lors du refus de la demande");
+    } finally {
+      setActionLoading(false);
     }
   };
 
@@ -190,7 +208,6 @@ const Demandes = () => {
       [name]: value,
     }));
 
-    // Charger les composants quand une machine est sélectionnée
     if (name === "machine_id") {
       loadComposants(value);
       setFormData((prev) => ({
@@ -205,7 +222,6 @@ const Demandes = () => {
     setSubmitting(true);
 
     try {
-      // CORRECTION: Préparer les bonnes données pour une demande
       const dataToSubmit = {
         ...formData,
         quantite_demandee: parseInt(formData.quantite_demandee) || 1,
@@ -214,23 +230,15 @@ const Demandes = () => {
           : null,
       };
 
-      console.log("📤 Envoi des données demande:", dataToSubmit);
-
-      // CORRECTION: Utiliser createDemande au lieu de createMachine
       const response = await apiService.createDemande(dataToSubmit);
-      console.log("✅ Demande créée:", response.data);
-
       toast.success("Demande créée avec succès");
       setShowModal(false);
       resetForm();
-
-      // Rechargement avec délai
       setTimeout(() => {
         loadDemandes();
       }, 500);
     } catch (error) {
-      console.error("❌ Erreur lors de la création:", error);
-
+      console.error("Erreur lors de la création:", error);
       if (error.response?.status === 422 && error.response?.data?.errors) {
         const errors = error.response.data.errors;
         Object.values(errors)
@@ -306,7 +314,6 @@ const Demandes = () => {
     const currentPage = pagination.currentPage;
     const totalPages = pagination.totalPages;
 
-    // Première page
     if (currentPage > 1) {
       items.push(
         <Pagination.Item key="first" onClick={() => handlePageChange(1)}>
@@ -315,7 +322,6 @@ const Demandes = () => {
       );
     }
 
-    // Pages autour de la page actuelle
     for (
       let i = Math.max(1, currentPage - 2);
       i <= Math.min(totalPages, currentPage + 2);
@@ -332,7 +338,6 @@ const Demandes = () => {
       );
     }
 
-    // Dernière page
     if (currentPage < totalPages) {
       items.push(
         <Pagination.Item
@@ -583,6 +588,7 @@ const Demandes = () => {
                               <i className="fas fa-eye"></i>
                             </Button>
 
+                            {/* Boutons admin pour accepter/refuser */}
                             {user?.role === "admin" &&
                               demande.statut === "en_attente" && (
                                 <>
@@ -590,9 +596,7 @@ const Demandes = () => {
                                     variant="outline-success"
                                     size="sm"
                                     title="Accepter"
-                                    onClick={() => {
-                                      /* TODO: Implémenter l'acceptation */
-                                    }}
+                                    onClick={() => handleAccepter(demande)}
                                   >
                                     <i className="fas fa-check"></i>
                                   </Button>
@@ -600,9 +604,7 @@ const Demandes = () => {
                                     variant="outline-danger"
                                     size="sm"
                                     title="Refuser"
-                                    onClick={() => {
-                                      /* TODO: Implémenter le refus */
-                                    }}
+                                    onClick={() => handleRefuser(demande)}
                                   >
                                     <i className="fas fa-times"></i>
                                   </Button>
@@ -829,6 +831,131 @@ const Demandes = () => {
             </Button>
           </Modal.Footer>
         </Form>
+      </Modal>
+
+      {/* Modal d'acceptation */}
+      <Modal show={showAcceptModal} onHide={() => setShowAcceptModal(false)}>
+        <Modal.Header closeButton>
+          <Modal.Title className="text-success">
+            <i className="fas fa-check me-2"></i>
+            Accepter la demande
+          </Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          {selectedDemande && (
+            <>
+              <div className="mb-3">
+                <strong>Demande:</strong> #{selectedDemande.numero_demande}
+              </div>
+              <div className="mb-3">
+                <strong>Titre:</strong> {selectedDemande.titre}
+              </div>
+              <div className="mb-3">
+                <strong>Demandeur:</strong> {selectedDemande.user?.name}
+              </div>
+              
+              <Form.Group>
+                <Form.Label>Commentaire (optionnel)</Form.Label>
+                <Form.Control
+                  as="textarea"
+                  rows={3}
+                  value={commentaire}
+                  onChange={(e) => setCommentaire(e.target.value)}
+                  placeholder="Ajouter un commentaire pour le demandeur..."
+                />
+                <Form.Text className="text-muted">
+                  Ce commentaire sera envoyé au demandeur avec la notification d'acceptation.
+                </Form.Text>
+              </Form.Group>
+            </>
+          )}
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={() => setShowAcceptModal(false)}>
+            Annuler
+          </Button>
+          <Button 
+            variant="success" 
+            onClick={confirmerAcceptation}
+            disabled={actionLoading}
+          >
+            {actionLoading ? (
+              <>
+                <Spinner as="span" animation="border" size="sm" className="me-2" />
+                Acceptation...
+              </>
+            ) : (
+              <>
+                <i className="fas fa-check me-2"></i>
+                Accepter la demande
+              </>
+            )}
+          </Button>
+        </Modal.Footer>
+      </Modal>
+
+      {/* Modal de refus */}
+      <Modal show={showRefuseModal} onHide={() => setShowRefuseModal(false)}>
+        <Modal.Header closeButton>
+          <Modal.Title className="text-danger">
+            <i className="fas fa-times me-2"></i>
+            Refuser la demande
+          </Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          {selectedDemande && (
+            <>
+              <div className="mb-3">
+                <strong>Demande:</strong> #{selectedDemande.numero_demande}
+              </div>
+              <div className="mb-3">
+                <strong>Titre:</strong> {selectedDemande.titre}
+              </div>
+              <div className="mb-3">
+                <strong>Demandeur:</strong> {selectedDemande.user?.name}
+              </div>
+              
+              <Form.Group>
+                <Form.Label>
+                  Motif du refus <span className="text-danger">*</span>
+                </Form.Label>
+                <Form.Control
+                  as="textarea"
+                  rows={3}
+                  value={commentaire}
+                  onChange={(e) => setCommentaire(e.target.value)}
+                  placeholder="Expliquer le motif du refus..."
+                  required
+                />
+                <Form.Text className="text-muted">
+                  Ce motif sera envoyé au demandeur avec la notification de refus.
+                </Form.Text>
+              </Form.Group>
+            </>
+          )}
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={() => setShowRefuseModal(false)}>
+            Annuler
+          </Button>
+          <Button 
+            variant="danger" 
+            onClick={confirmerRefus}
+            disabled={actionLoading || !commentaire.trim()}
+          >
+            {actionLoading ? (
+              <>
+                <Spinner as="span" animation="border" size="sm" className="me-2" />
+                Refus...
+              </>
+            ) : (
+              <>
+                <i className="fas fa-times me-2"></i>
+                Refuser la demande
+              </>
+            )}
+          </Button>
+        </Modal.Footer>
       </Modal>
     </div>
   );

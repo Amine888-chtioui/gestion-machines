@@ -1,4 +1,4 @@
-// src/services/apiService.js - Version complète avec gestion d'images
+// src/services/apiService.js - Version complète mise à jour avec accepter/refuser
 import axios from 'axios';
 import { toast } from 'react-toastify';
 
@@ -359,7 +359,7 @@ class ApiService {
   }
 
   // ===================================
-  // DEMANDES
+  // DEMANDES (AVEC ACCEPTER/REFUSER)
   // ===================================
 
   async getDemandes(params = {}) {
@@ -382,33 +382,69 @@ class ApiService {
     return this.delete(`/demandes/${id}`);
   }
 
-  async accepterDemande(id, commentaire) {
-    return this.patch(`/demandes/${id}/accepter`, { commentaire_admin: commentaire });
+  // ===================================
+  // NOUVELLES MÉTHODES ACCEPTER/REFUSER
+  // ===================================
+
+  /**
+   * Accepter une demande (admin seulement)
+   * @param {number} id - ID de la demande
+   * @param {string} commentaire - Commentaire optionnel
+   */
+  async accepterDemande(id, commentaire = '') {
+    return this.patch(`/demandes/${id}/accepter`, { 
+      commentaire_admin: commentaire 
+    });
   }
 
+  /**
+   * Refuser une demande (admin seulement)
+   * @param {number} id - ID de la demande
+   * @param {string} commentaire - Motif du refus (obligatoire)
+   */
   async refuserDemande(id, commentaire) {
-    return this.patch(`/demandes/${id}/refuser`, { commentaire_admin: commentaire });
+    return this.patch(`/demandes/${id}/refuser`, { 
+      commentaire_admin: commentaire 
+    });
   }
 
-  async changerStatutDemande(id, statut, commentaire) {
+  /**
+   * Changer le statut d'une demande (admin seulement)
+   * @param {number} id - ID de la demande
+   * @param {string} statut - Nouveau statut
+   * @param {string} commentaire - Commentaire optionnel
+   */
+  async changerStatutDemande(id, statut, commentaire = '') {
     return this.patch(`/demandes/${id}/statut`, { 
       statut, 
       commentaire_admin: commentaire 
     });
   }
 
+  /**
+   * Obtenir les demandes en attente (admin seulement)
+   */
   async getDemandesEnAttente() {
     return this.get('/demandes/en-attente');
   }
 
+  /**
+   * Obtenir les demandes urgentes (admin seulement)
+   */
   async getDemandesUrgentes() {
     return this.get('/demandes/urgentes');
   }
 
+  /**
+   * Obtenir mes demandes récentes
+   */
   async getMesDemandesRecentes() {
     return this.get('/demandes/mes-demandes-recentes');
   }
 
+  /**
+   * Obtenir les statistiques des demandes
+   */
   async getStatistiquesDemandes() {
     return this.get('/demandes/statistiques');
   }

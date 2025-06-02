@@ -116,23 +116,27 @@ Route::prefix('machines')->group(function () {
 
     // === DEMANDES ===
     Route::prefix('demandes')->group(function () {
-        Route::get('/', [DemandeController::class, 'index']);
-        Route::post('/', [DemandeController::class, 'store']);
-        Route::get('/statistiques', [DemandeController::class, 'statistiques']);
-        Route::get('/mes-demandes-recentes', [DemandeController::class, 'mesDemandesRecentes']);
-        Route::get('/{id}', [DemandeController::class, 'show']);
-        Route::put('/{id}', [DemandeController::class, 'update']);
-        Route::delete('/{id}', [DemandeController::class, 'destroy']);
+    Route::get('/', [DemandeController::class, 'index']);
+    Route::post('/', [DemandeController::class, 'store']);
+    Route::get('/statistiques', [DemandeController::class, 'statistiques']);
+    Route::get('/mes-demandes-recentes', [DemandeController::class, 'mesDemandesRecentes']);
+    Route::get('/{id}', [DemandeController::class, 'show']);
+    Route::put('/{id}', [DemandeController::class, 'update']);
+    Route::delete('/{id}', [DemandeController::class, 'destroy']);
+    
+    // Routes admin uniquement - NOUVELLES ROUTES SIMPLES
+    Route::middleware('role:admin')->group(function () {
+        Route::get('/en-attente', [DemandeController::class, 'demandesEnAttente']);
+        Route::get('/urgentes', [DemandeController::class, 'demandesUrgentes']);
         
-        // Routes admin uniquement
-        Route::middleware('role:admin')->group(function () {
-            Route::get('/en-attente', [DemandeController::class, 'demandesEnAttente']);
-            Route::get('/urgentes', [DemandeController::class, 'demandesUrgentes']);
-            Route::patch('/{id}/accepter', [DemandeController::class, 'accepter']);
-            Route::patch('/{id}/refuser', [DemandeController::class, 'refuser']);
-            Route::patch('/{id}/statut', [DemandeController::class, 'changerStatut']);
-        });
+        // Routes simplifiées pour accepter/refuser
+        Route::patch('/{id}/accepter', [DemandeController::class, 'accepter']);
+        Route::patch('/{id}/refuser', [DemandeController::class, 'refuser']);
+        
+        // Route pour changer le statut (plus avancée)
+        Route::patch('/{id}/statut', [DemandeController::class, 'changerStatut']);
     });
+});
 
     // === NOTIFICATIONS ===
     Route::prefix('notifications')->group(function () {

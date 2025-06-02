@@ -272,86 +272,105 @@ class DemandeController extends Controller
     }
 
     public function accepter(Request $request, $id)
-    {
-        try {
-            $user = $request->user();
+{
+    try {
+        $user = $request->user();
 
-            if (!$user->isAdmin()) {
-                return response()->json([
-                    'message' => 'Action non autorisée'
-                ], 403);
-            }
-
-            $request->validate([
-                'commentaire_admin' => 'nullable|string'
-            ]);
-
-            $demande = Demande::findOrFail($id);
-
-            if ($demande->statut !== 'en_attente') {
-                return response()->json([
-                    'message' => 'Cette demande ne peut plus être acceptée'
-                ], 400);
-            }
-
-            $demande->accepter($user, $request->commentaire_admin);
-            Notification::notifierStatutDemande($demande);
-
-            $demande->load(['user', 'machine', 'composant', 'traitePar']);
-
+        // Vérifier que l'utilisateur est admin
+        if (!$user->isAdmin()) {
             return response()->json([
-                'message' => 'Demande acceptée avec succès',
-                'data' => $demande
-            ]);
-
-        } catch (\Exception $e) {
-            return response()->json([
-                'message' => 'Erreur lors de l\'acceptation de la demande',
-                'error' => $e->getMessage()
-            ], 500);
+                'message' => 'Action non autorisée'
+            ], 403);
         }
-    }
 
-    public function refuser(Request $request, $id)
-    {
-        try {
-            $user = $request->user();
+        $request->validate([
+            'commentaire_admin' => 'nullable|string|max:1000'
+        ]);
 
-            if (!$user->isAdmin()) {
-                return response()->json([
-                    'message' => 'Action non autorisée'
-                ], 403);
-            }
+        $demande = Demande::findOrFail($id);
 
-            $request->validate([
-                'commentaire_admin' => 'required|string'
-            ]);
-
-            $demande = Demande::findOrFail($id);
-
-            if ($demande->statut !== 'en_attente') {
-                return response()->json([
-                    'message' => 'Cette demande ne peut plus être refusée'
-                ], 400);
-            }
-
-            $demande->refuser($user, $request->commentaire_admin);
-            Notification::notifierStatutDemande($demande);
-
-            $demande->load(['user', 'machine', 'composant', 'traitePar']);
-
+        // Vérifier que la demande est en attente
+        if ($demande->statut !== 'en_attente') {
             return response()->json([
-                'message' => 'Demande refusée avec succès',
-                'data' => $demande
-            ]);
-
-        } catch (\Exception $e) {
-            return response()->json([
-                'message' => 'Erreur lors du refus de la demande',
-                'error' => $e->getMessage()
-            ], 500);
+                'message' => 'Cette demande ne peut plus être acceptée'
+            ], 400);
         }
+
+        // Accepter la demande (utilise la méthode du modèle)
+        $demande->accepter($user, $request->commentaire_admin);
+
+        // Recharger avec les relations
+        $demande->load(['user', 'machine', 'composant', 'traitePar']);
+
+        return response()->json([
+            'message' => 'Demande acceptée avec succès',
+            'data' => $demande
+        ]);
+
+    } catch (ValidationException $e) {
+        return response()->json([
+            'message' => 'Erreur de validation',
+            'errors' => $e->errors()
+        ], 422);
+    } catch (\Exception $e) {
+        return response()->json([
+            'message' => 'Erreur lors de l\'acceptation de la demande',
+            'error' => $e->getMessage()
+        ], 500);
     }
+}
+
+/**
+ * Refuser une demande (méthode mise à jour)
+ */
+public function refuser(Request $request, $id)
+{
+    try {
+        $user = $request->user();
+
+        // Vérifier que l'utilisateur est admin
+        if (!$user->isAdmin()) {
+            return response()->json([
+                'message' => 'Action non autorisée'
+            ], 403);
+        }
+
+        $request->validate([
+            'commentaire_admin' => 'required|string|max:1000'
+        ]);
+
+        $demande = Demande::findOrFail($id);
+
+        // Vérifier que la demande est en attente
+        if ($demande->statut !== 'en_attente') {
+            return response()->json([
+                'message' => 'Cette demande ne peut plus être refusée'
+            ], 400);
+        }
+
+        // Refuser la demande (utilise la méthode du modèle)
+        $demande->refuser($user, $request->commentaire_admin);
+
+        // Recharger avec les relations
+        $demande->load(['user', 'machine', 'composant', 'traitePar']);
+
+        return response()->json([
+            'message' => 'Demande refusée avec succès',
+            'data' => $demande
+        ]);
+
+    } catch (ValidationException $e) {
+        return response()->json([
+            'message' => 'Erreur de validation',
+            'errors' => $e->errors()
+        ], 422);
+    } catch (\Exception $e) {
+        return response()->json([
+            'message' => 'Erreur lors du refus de la demande',
+            'error' => $e->getMessage()
+        ], 500);
+    }
+}
 
     public function changerStatut(Request $request, $id)
     {
@@ -522,6 +541,8 @@ class DemandeController extends Controller
         }
     }
 
+    
+
     public function demandesUrgentes()
     {
         try {
@@ -556,4 +577,6 @@ class DemandeController extends Controller
             ], 500);
         }
     }
+
+    
 }

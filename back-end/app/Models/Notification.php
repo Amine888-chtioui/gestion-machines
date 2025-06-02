@@ -188,4 +188,86 @@ class Notification extends Model
             );
         }
     }
+
+    public static function notifierDemandeAcceptee($demande)
+{
+    return self::creerNotification(
+        $demande->user_id,
+        'Demande acceptée',
+        "Votre demande #{$demande->numero_demande} ({$demande->titre}) a été acceptée par l'administration.",
+        'success',
+        [
+            'demande_id' => $demande->id,
+            'numero_demande' => $demande->numero_demande,
+            'action' => 'demande_acceptee'
+        ]
+    );
+}
+
+/**
+ * Notifier l'utilisateur quand sa demande est refusée
+ */
+public static function notifierDemandeRefusee($demande, $commentaire = null)
+{
+    $message = "Votre demande #{$demande->numero_demande} ({$demande->titre}) a été refusée par l'administration.";
+    
+    if ($commentaire) {
+        $message .= "\nMotif: " . $commentaire;
+    }
+
+    return self::creerNotification(
+        $demande->user_id,
+        'Demande refusée',
+        $message,
+        'error',
+        [
+            'demande_id' => $demande->id,
+            'numero_demande' => $demande->numero_demande,
+            'commentaire' => $commentaire,
+            'action' => 'demande_refusee'
+        ]
+    );
+}
+
+/**
+ * Notifier l'utilisateur d'un changement de statut de sa demande
+ */
+public static function notifierChangementStatut($demande, $commentaire = null)
+{
+    $statutLabels = [
+        'en_attente' => 'En attente',
+        'en_cours' => 'En cours de traitement',
+        'acceptee' => 'Acceptée',
+        'refusee' => 'Refusée',
+        'terminee' => 'Terminée'
+    ];
+
+    $statutLabel = $statutLabels[$demande->statut] ?? $demande->statut;
+    $message = "Le statut de votre demande #{$demande->numero_demande} ({$demande->titre}) a été mis à jour: {$statutLabel}";
+    
+    if ($commentaire) {
+        $message .= "\nCommentaire: " . $commentaire;
+    }
+
+    $type = match($demande->statut) {
+        'acceptee', 'terminee' => 'success',
+        'refusee' => 'error',
+        'en_cours' => 'info',
+        default => 'warning'
+    };
+
+    return self::creerNotification(
+        $demande->user_id,
+        'Mise à jour de demande',
+        $message,
+        $type,
+        [
+            'demande_id' => $demande->id,
+            'numero_demande' => $demande->numero_demande,
+            'nouveau_statut' => $demande->statut,
+            'commentaire' => $commentaire,
+            'action' => 'statut_change'
+        ]
+    );
+}
 }
