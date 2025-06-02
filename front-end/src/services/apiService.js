@@ -1,4 +1,4 @@
-// src/services/apiService.js - Version complète mise à jour avec gestion d'images
+// src/services/apiService.js - Version complète avec gestion d'images
 import axios from 'axios';
 import { toast } from 'react-toastify';
 
@@ -274,13 +274,13 @@ class ApiService {
     return this.get('/machines/statistiques');
   }
 
-  // Nouvelle méthode pour supprimer l'image d'une machine
+  // Méthode pour supprimer l'image d'une machine
   async deleteMachineImage(id) {
     return this.delete(`/machines/${id}/image`);
   }
 
   // ===================================
-  // COMPOSANTS
+  // COMPOSANTS (AVEC GESTION D'IMAGES)
   // ===================================
 
   async getComposants(params = {}) {
@@ -292,15 +292,45 @@ class ApiService {
   }
 
   async createComposant(composantData) {
+    // Si composantData contient une image, utiliser FormData
+    if (composantData.image) {
+      const formData = new FormData();
+      Object.keys(composantData).forEach(key => {
+        if (key === 'caracteristiques' && typeof composantData[key] === 'object') {
+          formData.append(key, JSON.stringify(composantData[key]));
+        } else {
+          formData.append(key, composantData[key]);
+        }
+      });
+      return this.uploadFile('/composants', formData);
+    }
     return this.post('/composants', composantData);
   }
 
   async updateComposant(id, composantData) {
+    // Si composantData contient une image, utiliser FormData avec _method PUT
+    if (composantData.image) {
+      const formData = new FormData();
+      formData.append('_method', 'PUT'); // Laravel method spoofing
+      Object.keys(composantData).forEach(key => {
+        if (key === 'caracteristiques' && typeof composantData[key] === 'object') {
+          formData.append(key, JSON.stringify(composantData[key]));
+        } else {
+          formData.append(key, composantData[key]);
+        }
+      });
+      return this.uploadFile(`/composants/${id}`, formData);
+    }
     return this.put(`/composants/${id}`, composantData);
   }
 
   async deleteComposant(id) {
     return this.delete(`/composants/${id}`);
+  }
+
+  // Méthode pour supprimer l'image d'un composant
+  async deleteComposantImage(id) {
+    return this.delete(`/composants/${id}/image`);
   }
 
   async getComposantsDefaillants() {
@@ -321,6 +351,11 @@ class ApiService {
 
   async getStatistiquesComposants() {
     return this.get('/composants/statistiques');
+  }
+
+  // Méthode pour vérifier les images des composants (admin)
+  async checkComposantImages() {
+    return this.get('/composants/admin/check-images');
   }
 
   // ===================================
@@ -491,373 +526,6 @@ class ApiService {
   }
 
   // ===================================
-  // RAPPORTS
-  // ===================================
-
-  async getRapportMachines(params = {}) {
-    return this.get('/rapports/machines', { params });
-  }
-
-  async getRapportDemandes(params = {}) {
-    return this.get('/rapports/demandes', { params });
-  }
-
-  async getRapportComposants(params = {}) {
-    return this.get('/rapports/composants', { params });
-  }
-
-  // ===================================
-  // RECHERCHE
-  // ===================================
-
-  async searchGlobal(query, filters = {}) {
-    return this.post('/search', { query, filters });
-  }
-
-  async searchMachines(query, filters = {}) {
-    return this.post('/search/machines', { query, filters });
-  }
-
-  async searchComposants(query, filters = {}) {
-    return this.post('/search/composants', { query, filters });
-  }
-
-  async searchDemandes(query, filters = {}) {
-    return this.post('/search/demandes', { query, filters });
-  }
-
-  // ===================================
-  // EXPORTATION / IMPORTATION
-  // ===================================
-
-  async exportData(type, format = 'xlsx', params = {}) {
-    const url = `/export/${type}?format=${format}`;
-    return this.get(url, { params, responseType: 'blob' });
-  }
-
-  async importData(type, file, options = {}) {
-    const formData = new FormData();
-    formData.append('file', file);
-    Object.keys(options).forEach(key => {
-      formData.append(key, options[key]);
-    });
-    
-    return this.uploadFile(`/import/${type}`, formData);
-  }
-
-  async backupData() {
-    return this.post('/backup');
-  }
-
-  async restoreData(backupFile) {
-    const formData = new FormData();
-    formData.append('backup', backupFile);
-    return this.uploadFile('/restore', formData);
-  }
-
-  // ===================================
-  // SYSTEME ET CONFIGURATION
-  // ===================================
-
-  async getSystemHealth() {
-    return this.get('/health');
-  }
-
-  async getSystemMetrics() {
-    return this.get('/metrics');
-  }
-
-  async getSystemInfo() {
-    return this.get('/system-info');
-  }
-
-  async getSystemSettings() {
-    return this.get('/settings');
-  }
-
-  async updateSystemSettings(settings) {
-    return this.put('/settings', settings);
-  }
-
-  async resetSystemSettings() {
-    return this.post('/settings/reset');
-  }
-
-  // ===================================
-  // LOGS ET AUDIT
-  // ===================================
-
-  async getLogs(params = {}) {
-    return this.get('/logs', { params });
-  }
-
-  async getAuditTrail(params = {}) {
-    return this.get('/audit', { params });
-  }
-
-  async clearLogs() {
-    return this.delete('/logs');
-  }
-
-  // ===================================
-  // SESSIONS
-  // ===================================
-
-  async getActiveSessions() {
-    return this.get('/sessions');
-  }
-
-  async revokeSession(sessionId) {
-    return this.delete(`/sessions/${sessionId}`);
-  }
-
-  async revokeAllSessions() {
-    return this.delete('/sessions/all');
-  }
-
-  // ===================================
-  // PREFERENCES UTILISATEUR
-  // ===================================
-
-  async getUserPreferences() {
-    return this.get('/preferences');
-  }
-
-  async updateUserPreferences(preferences) {
-    return this.put('/preferences', preferences);
-  }
-
-  async resetUserPreferences() {
-    return this.delete('/preferences');
-  }
-
-  // ===================================
-  // FAVORIS
-  // ===================================
-
-  async getFavorites() {
-    return this.get('/favorites');
-  }
-
-  async addToFavorites(type, id) {
-    return this.post('/favorites', { type, id });
-  }
-
-  async removeFromFavorites(type, id) {
-    return this.delete(`/favorites/${type}/${id}`);
-  }
-
-  // ===================================
-  // FEEDBACK
-  // ===================================
-
-  async submitFeedback(feedback) {
-    return this.post('/feedback', feedback);
-  }
-
-  async getFeedbacks(params = {}) {
-    return this.get('/feedback', { params });
-  }
-
-  // ===================================
-  // CALENDRIER ET PLANIFICATION
-  // ===================================
-
-  async getCalendarEvents(params = {}) {
-    return this.get('/calendar', { params });
-  }
-
-  async createCalendarEvent(event) {
-    return this.post('/calendar', event);
-  }
-
-  async updateCalendarEvent(id, event) {
-    return this.put(`/calendar/${id}`, event);
-  }
-
-  async deleteCalendarEvent(id) {
-    return this.delete(`/calendar/${id}`);
-  }
-
-  // ===================================
-  // TACHES RECURRENTES
-  // ===================================
-
-  async getRecurringTasks(params = {}) {
-    return this.get('/tasks/recurring', { params });
-  }
-
-  async createRecurringTask(task) {
-    return this.post('/tasks/recurring', task);
-  }
-
-  async updateRecurringTask(id, task) {
-    return this.put(`/tasks/recurring/${id}`, task);
-  }
-
-  async deleteRecurringTask(id) {
-    return this.delete(`/tasks/recurring/${id}`);
-  }
-
-  // ===================================
-  // WORKFLOWS
-  // ===================================
-
-  async getWorkflows(params = {}) {
-    return this.get('/workflows', { params });
-  }
-
-  async executeWorkflow(id, input = {}) {
-    return this.post(`/workflows/${id}/execute`, input);
-  }
-
-  async getWorkflowHistory(id, params = {}) {
-    return this.get(`/workflows/${id}/history`, { params });
-  }
-
-  // ===================================
-  // TEMPLATES
-  // ===================================
-
-  async getTemplates(type, params = {}) {
-    return this.get(`/templates/${type}`, { params });
-  }
-
-  async createTemplate(type, template) {
-    return this.post(`/templates/${type}`, template);
-  }
-
-  async useTemplate(type, id, data = {}) {
-    return this.post(`/templates/${type}/${id}/use`, data);
-  }
-
-  // ===================================
-  // KPIS ET METRIQUES
-  // ===================================
-
-  async getKPIs(params = {}) {
-    return this.get('/kpis', { params });
-  }
-
-  async calculateKPI(kpiId, params = {}) {
-    return this.post(`/kpis/${kpiId}/calculate`, params);
-  }
-
-  async getKPIHistory(kpiId, params = {}) {
-    return this.get(`/kpis/${kpiId}/history`, { params });
-  }
-
-  // ===================================
-  // ALERTES ET SEUILS
-  // ===================================
-
-  async getAlertRules(params = {}) {
-    return this.get('/alerts/rules', { params });
-  }
-
-  async createAlertRule(rule) {
-    return this.post('/alerts/rules', rule);
-  }
-
-  async updateAlertRule(id, rule) {
-    return this.put(`/alerts/rules/${id}`, rule);
-  }
-
-  async deleteAlertRule(id) {
-    return this.delete(`/alerts/rules/${id}`);
-  }
-
-  async getActiveAlerts(params = {}) {
-    return this.get('/alerts/active', { params });
-  }
-
-  async acknowledgeAlert(id) {
-    return this.patch(`/alerts/${id}/acknowledge`);
-  }
-
-  async resolveAlert(id, resolution) {
-    return this.patch(`/alerts/${id}/resolve`, { resolution });
-  }
-
-  // ===================================
-  // MAINTENANCE PREDICTIVE
-  // ===================================
-
-  async getPredictiveAnalysis(machineId, params = {}) {
-    return this.get(`/predictive/machines/${machineId}`, { params });
-  }
-
-  async getMaintenanceRecommendations(params = {}) {
-    return this.get('/predictive/recommendations', { params });
-  }
-
-  async getFailurePredictions(params = {}) {
-    return this.get('/predictive/failures', { params });
-  }
-
-  // ===================================
-  // OPTIMISATION
-  // ===================================
-
-  async getResourceOptimization(params = {}) {
-    return this.get('/optimization/resources', { params });
-  }
-
-  async getMaintenanceOptimization(params = {}) {
-    return this.get('/optimization/maintenance', { params });
-  }
-
-  async getInventoryOptimization(params = {}) {
-    return this.get('/optimization/inventory', { params });
-  }
-
-  // ===================================
-  // INTEGRATIONS EXTERNES
-  // ===================================
-
-  async syncWithExternalSystem(systemType, data) {
-    return this.post(`/integrations/${systemType}/sync`, data);
-  }
-
-  async getIntegrationStatus(systemType) {
-    return this.get(`/integrations/${systemType}/status`);
-  }
-
-  async testIntegrationConnection(systemType, config) {
-    return this.post(`/integrations/${systemType}/test`, config);
-  }
-
-  // ===================================
-  // NOTIFICATIONS PUSH
-  // ===================================
-
-  async subscribeToPushNotifications(subscription) {
-    return this.post('/push/subscribe', subscription);
-  }
-
-  async unsubscribeFromPushNotifications() {
-    return this.post('/push/unsubscribe');
-  }
-
-  // ===================================
-  // GEOLOCALISATION
-  // ===================================
-
-  async updateLocation(coordinates) {
-    return this.patch('/location', coordinates);
-  }
-
-  async getNearbyMachines(coordinates, radius = 1000) {
-    return this.get('/machines/nearby', { 
-      params: { 
-        lat: coordinates.latitude, 
-        lng: coordinates.longitude, 
-        radius 
-      } 
-    });
-  }
-
-  // ===================================
   // METHODES UTILITAIRES POUR IMAGES
   // ===================================
 
@@ -907,76 +575,6 @@ class ApiService {
       errors: errors
     };
   }
-
-  // ===================================
-  // METHODES UTILITAIRES GENERALES
-  // ===================================
-
-  // Méthode pour formater les erreurs de validation
-  formatValidationErrors(errors) {
-    const formattedErrors = {};
-    Object.keys(errors).forEach(field => {
-      if (Array.isArray(errors[field])) {
-        formattedErrors[field] = errors[field];
-      } else {
-        formattedErrors[field] = [errors[field]];
-      }
-    });
-    return formattedErrors;
-  }
-
-  // Méthode pour gérer les uploads de fichiers
-  async uploadFile(url, formData, config = {}) {
-    const uploadConfig = {
-      ...config,
-      headers: {
-        'Content-Type': 'multipart/form-data',
-        ...config.headers
-      }
-    };
-    return this.post(url, formData, uploadConfig);
-  }
-
-  // Méthode pour télécharger des fichiers
-  async downloadFile(url, filename) {
-    try {
-      const response = await this.api.get(url, {
-        responseType: 'blob'
-      });
-      
-      // Créer un lien de téléchargement
-      const blob = new Blob([response.data]);
-      const downloadUrl = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = downloadUrl;
-      link.setAttribute('download', filename);
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.URL.revokeObjectURL(downloadUrl);
-      
-      return response;
-    } catch (error) {
-      console.error('Erreur lors du téléchargement:', error);
-      throw error;
-    }
-  }
-
-  // ===================================
-  // HEALTH CHECK
-  // ===================================
-
-  async healthCheck() {
-    return this.get('/health');
-  }
-
-  async testConnection() {
-    return this.get('/test');
-  }
-
-  // ===================================
-  // METHODES UTILITAIRES POUR IMAGES (AVANCEES)
-  // ===================================
 
   // Redimensionner une image côté client
   resizeImage(file, maxWidth = 800, maxHeight = 600, quality = 0.8) {
@@ -1064,6 +662,72 @@ class ApiService {
       img.onerror = reject;
       img.src = URL.createObjectURL(file);
     });
+  }
+
+  // ===================================
+  // METHODES UTILITAIRES GENERALES
+  // ===================================
+
+  // Méthode pour formater les erreurs de validation
+  formatValidationErrors(errors) {
+    const formattedErrors = {};
+    Object.keys(errors).forEach(field => {
+      if (Array.isArray(errors[field])) {
+        formattedErrors[field] = errors[field];
+      } else {
+        formattedErrors[field] = [errors[field]];
+      }
+    });
+    return formattedErrors;
+  }
+
+  // Méthode pour gérer les uploads de fichiers
+  async uploadFile(url, formData, config = {}) {
+    const uploadConfig = {
+      ...config,
+      headers: {
+        'Content-Type': 'multipart/form-data',
+        ...config.headers
+      }
+    };
+    return this.post(url, formData, uploadConfig);
+  }
+
+  // Méthode pour télécharger des fichiers
+  async downloadFile(url, filename) {
+    try {
+      const response = await this.api.get(url, {
+        responseType: 'blob'
+      });
+      
+      // Créer un lien de téléchargement
+      const blob = new Blob([response.data]);
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.setAttribute('download', filename);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(downloadUrl);
+      
+      return response;
+    } catch (error) {
+      console.error('Erreur lors du téléchargement:', error);
+      throw error;
+    }
+  }
+
+  // ===================================
+  // HEALTH CHECK
+  // ===================================
+
+  async healthCheck() {
+    return this.get('/health');
+  }
+
+  async testConnection() {
+    return this.get('/test');
   }
 
   // ===================================
@@ -1184,178 +848,6 @@ class ApiService {
     const response = await this.get(url, config);
     this.setCache(cacheKey, response, ttl);
     return response;
-  }
-
-  // ===================================
-  // METHODES POUR GESTION D'ERREURS AVANCEE
-  // ===================================
-
-  // Retry automatique pour les requêtes qui échouent
-  async retryRequest(requestFn, maxRetries = 3, delay = 1000) {
-    for (let i = 0; i < maxRetries; i++) {
-      try {
-        return await requestFn();
-      } catch (error) {
-        if (i === maxRetries - 1) throw error;
-        
-        // Attendre avant de réessayer
-        await new Promise(resolve => setTimeout(resolve, delay * (i + 1)));
-      }
-    }
-  }
-
-  // ===================================
-  // METHODES POUR BATCH OPERATIONS
-  // ===================================
-
-  // Traitement par lots
-  async batchProcess(items, processor, batchSize = 10, delay = 100) {
-    const results = [];
-    
-    for (let i = 0; i < items.length; i += batchSize) {
-      const batch = items.slice(i, i + batchSize);
-      const batchPromises = batch.map(processor);
-      const batchResults = await Promise.allSettled(batchPromises);
-      
-      results.push(...batchResults);
-      
-      // Délai entre les lots pour éviter de surcharger le serveur
-      if (i + batchSize < items.length) {
-        await new Promise(resolve => setTimeout(resolve, delay));
-      }
-    }
-    
-    return results;
-  }
-
-  // ===================================
-  // METHODES POUR MONITORING
-  // ===================================
-
-  // Mesurer le temps de réponse
-  async measureResponseTime(requestFn) {
-    const start = performance.now();
-    try {
-      const result = await requestFn();
-      const duration = performance.now() - start;
-      console.log(`Requête exécutée en ${duration.toFixed(2)}ms`);
-      return { result, duration };
-    } catch (error) {
-      const duration = performance.now() - start;
-      console.error(`Requête échouée après ${duration.toFixed(2)}ms:`, error);
-      throw error;
-    }
-  }
-
-  // ===================================
-  // METHODES POUR WEBSOCKETS (SI NECESSAIRE)
-  // ===================================
-
-  // Initialiser une connexion WebSocket
-  initWebSocket(url) {
-    this.ws = new WebSocket(url);
-    
-    this.ws.onopen = () => {
-      console.log('WebSocket connecté');
-    };
-    
-    this.ws.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        this.handleWebSocketMessage(data);
-      } catch (error) {
-        console.error('Erreur parsing WebSocket message:', error);
-      }
-    };
-    
-    this.ws.onclose = () => {
-      console.log('WebSocket déconnecté');
-      // Tentative de reconnexion après 5 secondes
-      setTimeout(() => this.initWebSocket(url), 5000);
-    };
-    
-    this.ws.onerror = (error) => {
-      console.error('Erreur WebSocket:', error);
-    };
-  }
-
-  // Gérer les messages WebSocket
-  handleWebSocketMessage(data) {
-    switch (data.type) {
-      case 'notification':
-        toast.info(data.message);
-        break;
-      case 'alert':
-        toast.warning(data.message);
-        break;
-      case 'error':
-        toast.error(data.message);
-        break;
-      default:
-        console.log('Message WebSocket reçu:', data);
-    }
-  }
-
-  // Envoyer un message via WebSocket
-  sendWebSocketMessage(data) {
-    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-      this.ws.send(JSON.stringify(data));
-    } else {
-      console.warn('WebSocket non connecté');
-    }
-  }
-
-  // Fermer la connexion WebSocket
-  closeWebSocket() {
-    if (this.ws) {
-      this.ws.close();
-      this.ws = null;
-    }
-  }
-
-  // ===================================
-  // METHODES POUR DEBUGGING
-  // ===================================
-
-  // Activer/désactiver le mode debug
-  setDebugMode(enabled) {
-    this.debugMode = enabled;
-    if (enabled) {
-      console.log('Mode debug activé pour apiService');
-    }
-  }
-
-  // Logger pour debug
-  debugLog(...args) {
-    if (this.debugMode) {
-      console.log('[ApiService Debug]', ...args);
-    }
-  }
-
-  // ===================================
-  // METHODES POUR CONFIGURATION DYNAMIQUE
-  // ===================================
-
-  // Mettre à jour la configuration
-  updateConfig(newConfig) {
-    if (newConfig.baseURL) {
-      this.api.defaults.baseURL = newConfig.baseURL;
-    }
-    if (newConfig.timeout) {
-      this.api.defaults.timeout = newConfig.timeout;
-    }
-    if (newConfig.headers) {
-      Object.assign(this.api.defaults.headers, newConfig.headers);
-    }
-  }
-
-  // Obtenir la configuration actuelle
-  getConfig() {
-    return {
-      baseURL: this.api.defaults.baseURL,
-      timeout: this.api.defaults.timeout,
-      headers: this.api.defaults.headers
-    };
   }
 }
 

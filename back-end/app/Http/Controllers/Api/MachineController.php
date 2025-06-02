@@ -141,7 +141,7 @@ class MachineController extends Controller
         try {
             // Log des données reçues pour debug
             Log::info('Données reçues pour création machine:', [
-                'request_data' => $request->except(['image']), // Exclure l'image du log
+                'request_data' => $request->except(['image']),
                 'has_file' => $request->hasFile('image'),
                 'content_type' => $request->header('Content-Type')
             ]);
@@ -155,7 +155,8 @@ class MachineController extends Controller
                 'statut' => 'nullable|in:actif,inactif,maintenance',
                 'date_installation' => 'nullable|date',
                 'derniere_maintenance' => 'nullable|date',
-                'specifications_techniques' => 'nullable|string',
+                // CORRECTION: Accepter à la fois string et array pour specifications_techniques
+                'specifications_techniques' => 'nullable',
             ];
 
             // Validation d'image plus stricte
@@ -171,14 +172,32 @@ class MachineController extends Controller
 
             $validatedData = $request->validate($rules);
 
-            // Traiter specifications_techniques si c'est du JSON
+            // CORRECTION: Traitement amélioré de specifications_techniques
             if (isset($validatedData['specifications_techniques'])) {
                 $specs = $validatedData['specifications_techniques'];
+                
                 if (is_string($specs)) {
+                    // Si c'est une chaîne, essayer de décoder le JSON
                     $decodedSpecs = json_decode($specs, true);
                     $validatedData['specifications_techniques'] = $decodedSpecs ?: [];
+                } elseif (is_array($specs)) {
+                    // Si c'est déjà un tableau, le garder tel quel
+                    $validatedData['specifications_techniques'] = $specs;
+                } else {
+                    // Valeur par défaut si null ou autre type
+                    $validatedData['specifications_techniques'] = [];
                 }
+            } else {
+                // Valeur par défaut si pas fourni
+                $validatedData['specifications_techniques'] = [];
             }
+
+            // Log du traitement des specifications
+            Log::info('Traitement specifications_techniques:', [
+                'original_type' => gettype($request->input('specifications_techniques')),
+                'original_value' => $request->input('specifications_techniques'),
+                'processed_value' => $validatedData['specifications_techniques']
+            ]);
 
             // Gestion de l'upload d'image
             if ($request->hasFile('image')) {
@@ -204,6 +223,12 @@ class MachineController extends Controller
                 $machine->image_url = null;
                 $machine->has_image = false;
             }
+
+            Log::info('Machine créée avec succès:', [
+                'machine_id' => $machine->id,
+                'nom' => $machine->nom,
+                'has_image' => $machine->has_image
+            ]);
 
             return response()->json([
                 'message' => 'Machine créée avec succès',
@@ -233,7 +258,7 @@ class MachineController extends Controller
         }
     }
 
-    public function update(Request $request, $id)
+        public function update(Request $request, $id)
     {
         try {
             $machine = Machine::findOrFail($id);
@@ -253,7 +278,8 @@ class MachineController extends Controller
                 'statut' => 'sometimes|in:actif,inactif,maintenance',
                 'date_installation' => 'nullable|date',
                 'derniere_maintenance' => 'nullable|date',
-                'specifications_techniques' => 'nullable|string',
+                // CORRECTION: Même logique pour update
+                'specifications_techniques' => 'nullable',
             ];
 
             // Validation d'image
@@ -269,12 +295,17 @@ class MachineController extends Controller
 
             $validatedData = $request->validate($rules);
 
-            // Traiter specifications_techniques
+            // CORRECTION: Même traitement pour update
             if (isset($validatedData['specifications_techniques'])) {
                 $specs = $validatedData['specifications_techniques'];
+                
                 if (is_string($specs)) {
                     $decodedSpecs = json_decode($specs, true);
                     $validatedData['specifications_techniques'] = $decodedSpecs ?: [];
+                } elseif (is_array($specs)) {
+                    $validatedData['specifications_techniques'] = $specs;
+                } else {
+                    $validatedData['specifications_techniques'] = [];
                 }
             }
 

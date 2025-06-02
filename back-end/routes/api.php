@@ -92,21 +92,27 @@ Route::prefix('machines')->group(function () {
 
     // === COMPOSANTS ===
     Route::prefix('composants')->group(function () {
-        Route::get('/', [ComposantController::class, 'index']);
-        Route::get('/statistiques', [ComposantController::class, 'statistiques']);
-        Route::get('/defaillants', [ComposantController::class, 'getDefaillants']);
-        Route::get('/a-inspecter', [ComposantController::class, 'getAInspecter']);
-        Route::get('/{id}', [ComposantController::class, 'show']);
+    Route::get('/', [ComposantController::class, 'index']);
+    Route::get('/statistiques', [ComposantController::class, 'statistiques']);
+    Route::get('/defaillants', [ComposantController::class, 'getDefaillants']);
+    Route::get('/a-inspecter', [ComposantController::class, 'getAInspecter']);
+    Route::get('/{id}', [ComposantController::class, 'show']);
+    
+    // Routes admin uniquement
+    Route::middleware('role:admin')->group(function () {
+        Route::post('/', [ComposantController::class, 'store']);
+        Route::put('/{id}', [ComposantController::class, 'update']);
+        Route::delete('/{id}', [ComposantController::class, 'destroy']);
+        Route::patch('/{id}/statut', [ComposantController::class, 'updateStatut']);
+        Route::patch('/{id}/inspection', [ComposantController::class, 'updateInspection']);
         
-        // Routes admin uniquement
-        Route::middleware('role:admin')->group(function () {
-            Route::post('/', [ComposantController::class, 'store']);
-            Route::put('/{id}', [ComposantController::class, 'update']);
-            Route::delete('/{id}', [ComposantController::class, 'destroy']);
-            Route::patch('/{id}/statut', [ComposantController::class, 'updateStatut']);
-            Route::patch('/{id}/inspection', [ComposantController::class, 'updateInspection']);
-        });
+        // Nouvelle route pour supprimer l'image du composant
+        Route::delete('/{id}/image', [ComposantController::class, 'deleteImage']);
+        
+        // Route pour vérifier les images (optionnel, pour maintenance)
+        Route::get('/admin/check-images', [ComposantController::class, 'checkImages']);
     });
+});
 
     // === DEMANDES ===
     Route::prefix('demandes')->group(function () {

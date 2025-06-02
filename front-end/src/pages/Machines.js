@@ -1,10 +1,23 @@
 // src/pages/Machines.js - Version complète mise à jour avec gestion d'images corrigée
-import React, { useState, useEffect } from 'react';
-import { Card, Row, Col, Badge, Button, Modal, Form, Alert, Spinner, Pagination, Image, Dropdown } from 'react-bootstrap';
-import { Link } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext';
-import apiService from '../services/apiService';
-import { toast } from 'react-toastify';
+import React, { useState, useEffect } from "react";
+import {
+  Card,
+  Row,
+  Col,
+  Badge,
+  Button,
+  Modal,
+  Form,
+  Alert,
+  Spinner,
+  Pagination,
+  Image,
+  Dropdown,
+} from "react-bootstrap";
+import { Link } from "react-router-dom";
+import { useAuth } from "../contexts/AuthContext";
+import apiService from "../services/apiService";
+import { toast } from "react-toastify";
 
 const Machines = () => {
   const { user } = useAuth();
@@ -14,35 +27,35 @@ const Machines = () => {
   const [showModal, setShowModal] = useState(false);
   const [showStatutModal, setShowStatutModal] = useState(false);
   const [selectedMachine, setSelectedMachine] = useState(null);
-  const [viewMode, setViewMode] = useState('cards'); // 'cards' ou 'table'
+  const [viewMode, setViewMode] = useState("cards"); // 'cards' ou 'table'
   const [filters, setFilters] = useState({
-    search: '',
-    statut: '',
-    localisation: '',
-    modele: ''
+    search: "",
+    statut: "",
+    localisation: "",
+    modele: "",
   });
   const [pagination, setPagination] = useState({
     currentPage: 1,
     totalPages: 1,
     total: 0,
-    perPage: 12
+    perPage: 12,
   });
   const [formData, setFormData] = useState({
-    nom: '',
-    numero_serie: '',
-    modele: 'TELSOSPLICE TS3',
-    description: '',
-    localisation: '',
-    statut: 'actif',
-    date_installation: '',
-    derniere_maintenance: '',
+    nom: "",
+    numero_serie: "",
+    modele: "TELSOSPLICE TS3",
+    description: "",
+    localisation: "",
+    statut: "actif",
+    date_installation: "",
+    derniere_maintenance: "",
     specifications_techniques: {},
-    image: null
+    image: null,
   });
   const [imagePreview, setImagePreview] = useState(null);
   const [statutData, setStatutData] = useState({
-    statut: '',
-    derniere_maintenance: ''
+    statut: "",
+    derniere_maintenance: "",
   });
   const [submitting, setSubmitting] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -53,13 +66,13 @@ const Machines = () => {
 
   // Debug des images quand les machines changent
   useEffect(() => {
-    if (machines.length > 0 && process.env.NODE_ENV === 'development') {
-      console.group('🖼️ Debug Images');
-      machines.forEach(machine => {
+    if (machines.length > 0 && process.env.NODE_ENV === "development") {
+      console.group("🖼️ Debug Images");
+      machines.forEach((machine) => {
         console.log(`Machine ${machine.id} (${machine.nom}):`, {
           has_image: machine.has_image,
           image_url: machine.image_url,
-          image_path: machine.image_path
+          image_path: machine.image_path,
         });
       });
       console.groupEnd();
@@ -70,36 +83,36 @@ const Machines = () => {
     try {
       setLoading(true);
       setError(null);
-      
+
       const params = {
         page: pagination.currentPage,
         per_page: pagination.perPage,
         _t: Date.now(), // Anti-cache
         ...Object.fromEntries(
-          Object.entries(filters).filter(([key, value]) => value !== '')
-        )
+          Object.entries(filters).filter(([key, value]) => value !== "")
+        ),
       };
 
-      console.log('🔄 Chargement des machines avec params:', params);
+      console.log("🔄 Chargement des machines avec params:", params);
       const response = await apiService.getMachines(params);
-      console.log('📥 Réponse API machines:', response.data);
-      
+      console.log("📥 Réponse API machines:", response.data);
+
       if (response.data && response.data.data) {
         const machinesData = response.data.data.data || response.data.data;
-        
+
         setMachines(machinesData);
-        setPagination(prev => ({
+        setPagination((prev) => ({
           ...prev,
           currentPage: response.data.data.current_page || 1,
           totalPages: response.data.data.last_page || 1,
-          total: response.data.data.total || 0
+          total: response.data.data.total || 0,
         }));
       } else {
         setMachines([]);
       }
     } catch (error) {
-      console.error('❌ Erreur lors du chargement des machines:', error);
-      setError('Erreur lors du chargement des machines');
+      console.error("❌ Erreur lors du chargement des machines:", error);
+      setError("Erreur lors du chargement des machines");
       setMachines([]);
     } finally {
       setLoading(false);
@@ -110,41 +123,41 @@ const Machines = () => {
     setRefreshing(true);
     await loadMachines();
     setRefreshing(false);
-    toast.success('Données actualisées');
+    toast.success("Données actualisées");
   };
 
   const handleFilterChange = (key, value) => {
-    setFilters(prev => ({
+    setFilters((prev) => ({
       ...prev,
-      [key]: value
+      [key]: value,
     }));
-    setPagination(prev => ({ ...prev, currentPage: 1 }));
+    setPagination((prev) => ({ ...prev, currentPage: 1 }));
   };
 
   const clearFilters = () => {
     setFilters({
-      search: '',
-      statut: '',
-      localisation: '',
-      modele: ''
+      search: "",
+      statut: "",
+      localisation: "",
+      modele: "",
     });
-    setPagination(prev => ({ ...prev, currentPage: 1 }));
+    setPagination((prev) => ({ ...prev, currentPage: 1 }));
   };
 
   const handleFormChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
-      [name]: value
+      [name]: value,
     }));
   };
 
   // Gestion améliorée de l'image
   const handleImageChange = async (e) => {
     const file = e.target.files[0];
-    
+
     if (!file) {
-      setFormData(prev => ({ ...prev, image: null }));
+      setFormData((prev) => ({ ...prev, image: null }));
       setImagePreview(null);
       return;
     }
@@ -152,50 +165,54 @@ const Machines = () => {
     // Validation côté client renforcée
     const validation = apiService.validateImage(file);
     if (!validation.valid) {
-      validation.errors.forEach(error => toast.error(error));
-      e.target.value = '';
+      validation.errors.forEach((error) => toast.error(error));
+      e.target.value = "";
       return;
     }
 
-    console.log('📁 Fichier sélectionné:', {
+    console.log("📁 Fichier sélectionné:", {
       name: file.name,
       size: file.size,
       type: file.type,
-      size_mb: (file.size / 1024 / 1024).toFixed(2) + 'MB'
+      size_mb: (file.size / 1024 / 1024).toFixed(2) + "MB",
     });
 
     try {
       // Compression si nécessaire
       let processedFile = file;
-      if (file.size > 1024 * 1024) { // Plus de 1MB
-        console.log('🗜️ Compression de l\'image...');
+      if (file.size > 1024 * 1024) {
+        // Plus de 1MB
+        console.log("🗜️ Compression de l'image...");
         processedFile = await apiService.compressImage(file, 0.8);
-        console.log('✅ Image compressée:', {
-          original_size: (file.size / 1024 / 1024).toFixed(2) + 'MB',
-          compressed_size: (processedFile.size / 1024 / 1024).toFixed(2) + 'MB',
-          reduction: Math.round((1 - processedFile.size / file.size) * 100) + '%'
+        console.log("✅ Image compressée:", {
+          original_size: (file.size / 1024 / 1024).toFixed(2) + "MB",
+          compressed_size: (processedFile.size / 1024 / 1024).toFixed(2) + "MB",
+          reduction:
+            Math.round((1 - processedFile.size / file.size) * 100) + "%",
         });
       }
 
       // Créer le preview
       const preview = await apiService.createImagePreview(processedFile);
       setImagePreview(preview);
-      setFormData(prev => ({ ...prev, image: processedFile }));
-      
-      toast.success('Image chargée avec succès');
+      setFormData((prev) => ({ ...prev, image: processedFile }));
+
+      toast.success("Image chargée avec succès");
     } catch (error) {
-      console.error('❌ Erreur lors du traitement de l\'image:', error);
-      toast.error('Erreur lors du chargement de l\'image');
-      e.target.value = '';
+      console.error("❌ Erreur lors du traitement de l'image:", error);
+      toast.error("Erreur lors du chargement de l'image");
+      e.target.value = "";
     }
   };
 
   const removeImage = () => {
-    setFormData(prev => ({ ...prev, image: null }));
+    setFormData((prev) => ({ ...prev, image: null }));
     setImagePreview(null);
     const fileInput = document.querySelector('input[type="file"]');
-    if (fileInput) fileInput.value = '';
+    if (fileInput) fileInput.value = "";
   };
+
+  // Partie du fichier Machines.js à corriger - handleSubmit et resetForm
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -206,49 +223,67 @@ const Machines = () => {
       if (formData.image) {
         const validation = apiService.validateImage(formData.image);
         if (!validation.valid) {
-          validation.errors.forEach(error => toast.error(error));
+          validation.errors.forEach((error) => toast.error(error));
           return;
         }
       }
 
+      // CORRECTION: S'assurer que specifications_techniques est un objet/array valide
       const dataToSubmit = {
         ...formData,
-        specifications_techniques: formData.specifications_techniques || {}
+        // Si specifications_techniques est vide ou null, utiliser un objet vide
+        specifications_techniques: formData.specifications_techniques || {},
       };
 
-      console.log('📤 Envoi des données machine:', {
+      // CORRECTION: Si formData.specifications_techniques est un string, le parser
+      if (typeof dataToSubmit.specifications_techniques === "string") {
+        try {
+          dataToSubmit.specifications_techniques =
+            JSON.parse(dataToSubmit.specifications_techniques) || {};
+        } catch (e) {
+          dataToSubmit.specifications_techniques = {};
+        }
+      }
+
+      console.log("📤 Envoi des données machine:", {
         ...dataToSubmit,
         has_image: !!formData.image,
-        image_size: formData.image?.size
+        image_size: formData.image?.size,
+        specs_type: typeof dataToSubmit.specifications_techniques,
       });
 
       const response = await apiService.createMachine(dataToSubmit);
-      console.log('✅ Machine créée:', response.data);
-      
-      toast.success('Machine créée avec succès');
+      console.log("✅ Machine créée:", response.data);
+
+      toast.success("Machine créée avec succès");
       setShowModal(false);
       resetForm();
-      
+
       // Rechargement avec délai pour laisser le temps au serveur
       setTimeout(() => {
         loadMachines();
       }, 500);
-      
     } catch (error) {
-      console.error('❌ Erreur lors de la création:', error);
-      
+      console.error("❌ Erreur lors de la création:", error);
+
       if (error.response?.status === 422 && error.response?.data?.errors) {
         const errors = error.response.data.errors;
-        Object.values(errors).flat().forEach(err => {
-          toast.error(err);
-        });
+        Object.values(errors)
+          .flat()
+          .forEach((err) => {
+            toast.error(err);
+          });
       } else {
-        toast.error(error.response?.data?.message || 'Erreur lors de la création de la machine');
+        toast.error(
+          error.response?.data?.message ||
+            "Erreur lors de la création de la machine"
+        );
       }
     } finally {
       setSubmitting(false);
     }
   };
+
 
   const handleStatutChange = async (e) => {
     e.preventDefault();
@@ -256,67 +291,69 @@ const Machines = () => {
 
     try {
       if (statutData.statut) {
-        await apiService.updateMachineStatut(selectedMachine.id, statutData.statut);
+        await apiService.updateMachineStatut(
+          selectedMachine.id,
+          statutData.statut
+        );
       }
-      
+
       if (statutData.derniere_maintenance) {
         await apiService.updateMachineMaintenance(selectedMachine.id, {
-          derniere_maintenance: statutData.derniere_maintenance
+          derniere_maintenance: statutData.derniere_maintenance,
         });
       }
 
-      toast.success('Machine mise à jour avec succès');
+      toast.success("Machine mise à jour avec succès");
       setShowStatutModal(false);
       setSelectedMachine(null);
-      setStatutData({ statut: '', derniere_maintenance: '' });
-      
+      setStatutData({ statut: "", derniere_maintenance: "" });
+
       // Rechargement des données
       setTimeout(() => {
         loadMachines();
       }, 300);
     } catch (error) {
-      console.error('❌ Erreur lors de la mise à jour:', error);
-      toast.error('Erreur lors de la mise à jour de la machine');
+      console.error("❌ Erreur lors de la mise à jour:", error);
+      toast.error("Erreur lors de la mise à jour de la machine");
     } finally {
       setSubmitting(false);
     }
   };
 
   const handleDeleteImage = async (machineId) => {
-    if (!window.confirm('Êtes-vous sûr de vouloir supprimer cette image ?')) {
+    if (!window.confirm("Êtes-vous sûr de vouloir supprimer cette image ?")) {
       return;
     }
 
     try {
-      console.log('🗑️ Suppression image pour machine:', machineId);
-      
+      console.log("🗑️ Suppression image pour machine:", machineId);
+
       const response = await apiService.deleteMachineImage(machineId);
-      console.log('✅ Image supprimée:', response.data);
-      
-      toast.success('Image supprimée avec succès');
-      
+      console.log("✅ Image supprimée:", response.data);
+
+      toast.success("Image supprimée avec succès");
+
       // Mise à jour immédiate de l'état local
-      setMachines(prevMachines => 
-        prevMachines.map(machine => 
-          machine.id === machineId 
-            ? { 
-                ...machine, 
-                image_url: null, 
-                has_image: false, 
-                image_path: null 
+      setMachines((prevMachines) =>
+        prevMachines.map((machine) =>
+          machine.id === machineId
+            ? {
+                ...machine,
+                image_url: null,
+                has_image: false,
+                image_path: null,
               }
             : machine
         )
       );
-      
+
       // Rechargement pour être sûr
       setTimeout(() => {
         loadMachines();
       }, 300);
-      
     } catch (error) {
-      console.error('❌ Erreur lors de la suppression:', error);
-      toast.error('Erreur lors de la suppression de l\'image');
+      console.error("❌ Erreur lors de la suppression:", error);
+      toast.error("Erreur lors de la suppression de l'image");
     }
   };
 
@@ -324,48 +361,52 @@ const Machines = () => {
     setSelectedMachine(machine);
     setStatutData({
       statut: machine.statut,
-      derniere_maintenance: machine.derniere_maintenance || ''
+      derniere_maintenance: machine.derniere_maintenance || "",
     });
     setShowStatutModal(true);
   };
 
   const resetForm = () => {
     setFormData({
-      nom: '',
-      numero_serie: '',
-      modele: 'TELSOSPLICE TS3',
-      description: '',
-      localisation: '',
-      statut: 'actif',
-      date_installation: '',
-      derniere_maintenance: '',
+      nom: "",
+      numero_serie: "",
+      modele: "TELSOSPLICE TS3",
+      description: "",
+      localisation: "",
+      statut: "actif",
+      date_installation: "",
+      derniere_maintenance: "",
       specifications_techniques: {},
-      image: null
+      image: null,
     });
     setImagePreview(null);
   };
 
   const getStatutBadge = (statut) => {
     const variants = {
-      'actif': 'success',
-      'inactif': 'secondary',
-      'maintenance': 'warning'
+      actif: "success",
+      inactif: "secondary",
+      maintenance: "warning",
     };
     const labels = {
-      'actif': 'Actif',
-      'inactif': 'Inactif',
-      'maintenance': 'Maintenance'
+      actif: "Actif",
+      inactif: "Inactif",
+      maintenance: "Maintenance",
     };
-    return <Badge bg={variants[statut] || 'secondary'}>{labels[statut] || statut}</Badge>;
+    return (
+      <Badge bg={variants[statut] || "secondary"}>
+        {labels[statut] || statut}
+      </Badge>
+    );
   };
 
   const formatDate = (dateString) => {
-    if (!dateString) return '-';
-    return new Date(dateString).toLocaleDateString('fr-FR');
+    if (!dateString) return "-";
+    return new Date(dateString).toLocaleDateString("fr-FR");
   };
 
   const handlePageChange = (page) => {
-    setPagination(prev => ({ ...prev, currentPage: page }));
+    setPagination((prev) => ({ ...prev, currentPage: page }));
   };
 
   const renderPagination = () => {
@@ -383,10 +424,14 @@ const Machines = () => {
       );
     }
 
-    for (let i = Math.max(1, currentPage - 2); i <= Math.min(totalPages, currentPage + 2); i++) {
+    for (
+      let i = Math.max(1, currentPage - 2);
+      i <= Math.min(totalPages, currentPage + 2);
+      i++
+    ) {
       items.push(
-        <Pagination.Item 
-          key={i} 
+        <Pagination.Item
+          key={i}
           active={i === currentPage}
           onClick={() => handlePageChange(i)}
         >
@@ -397,7 +442,10 @@ const Machines = () => {
 
     if (currentPage < totalPages) {
       items.push(
-        <Pagination.Item key="last" onClick={() => handlePageChange(totalPages)}>
+        <Pagination.Item
+          key="last"
+          onClick={() => handlePageChange(totalPages)}
+        >
           {totalPages}
         </Pagination.Item>
       );
@@ -405,12 +453,12 @@ const Machines = () => {
 
     return (
       <Pagination className="justify-content-center">
-        <Pagination.Prev 
+        <Pagination.Prev
           disabled={currentPage === 1}
           onClick={() => handlePageChange(currentPage - 1)}
         />
         {items}
-        <Pagination.Next 
+        <Pagination.Next
           disabled={currentPage === totalPages}
           onClick={() => handlePageChange(currentPage + 1)}
         />
@@ -425,34 +473,36 @@ const Machines = () => {
     const [debugInfo, setDebugInfo] = useState(false);
 
     const toggleDebug = () => {
-      if (process.env.NODE_ENV === 'development') {
+      if (process.env.NODE_ENV === "development") {
         setDebugInfo(!debugInfo);
       }
     };
 
     const handleImageError = (e) => {
-      console.error('❌ Erreur chargement image:', {
+      console.error("❌ Erreur chargement image:", {
         machine_id: machine.id,
         image_url: machine.image_url,
         has_image: machine.has_image,
         image_path: machine.image_path,
-        error: e
+        error: e,
       });
       setImageError(true);
       setImageLoading(false);
     };
 
     const handleImageLoad = () => {
-      console.log('✅ Image chargée:', {
+      console.log("✅ Image chargée:", {
         machine_id: machine.id,
-        image_url: machine.image_url
+        image_url: machine.image_url,
       });
       setImageLoading(false);
       setImageError(false);
     };
 
-    const isValidImageUrl = machine.image_url && 
-      (machine.image_url.startsWith('http') || machine.image_url.startsWith('/'));
+    const isValidImageUrl =
+      machine.image_url &&
+      (machine.image_url.startsWith("http") ||
+        machine.image_url.startsWith("/"));
 
     return (
       <Col lg={4} md={6} className="mb-4">
@@ -462,24 +512,29 @@ const Machines = () => {
             {machine.has_image && isValidImageUrl && !imageError ? (
               <>
                 {imageLoading && (
-                  <div className="position-absolute top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center bg-light" style={{ zIndex: 2 }}>
+                  <div
+                    className="position-absolute top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center bg-light"
+                    style={{ zIndex: 2 }}
+                  >
                     <div className="text-center">
                       <Spinner animation="border" size="sm" />
                       <div className="small text-muted mt-2">Chargement...</div>
                     </div>
                   </div>
                 )}
-                <Card.Img 
-                  variant="top" 
+                <Card.Img
+                  variant="top"
                   src={machine.image_url}
                   alt={machine.nom}
-                  className={`machine-image ${imageLoading ? 'opacity-50' : ''}`}
+                  className={`machine-image ${
+                    imageLoading ? "opacity-50" : ""
+                  }`}
                   onError={handleImageError}
                   onLoad={handleImageLoad}
                   style={{
-                    width: '100%',
-                    height: '200px',
-                    objectFit: 'cover'
+                    width: "100%",
+                    height: "200px",
+                    objectFit: "cover",
                   }}
                 />
               </>
@@ -487,29 +542,46 @@ const Machines = () => {
               <div className="machine-image-placeholder d-flex align-items-center justify-content-center bg-light">
                 <div className="text-center text-muted">
                   <i className="fas fa-cogs fa-3x mb-2"></i>
-                  <div>
-                    {imageError ? 'Erreur image' : 'Aucune image'}
-                  </div>
-                  
+                  <div>{imageError ? "Erreur image" : "Aucune image"}</div>
+
                   {/* Debug en mode développement */}
-                  {process.env.NODE_ENV === 'development' && (
+                  {process.env.NODE_ENV === "development" && (
                     <div className="mt-2">
-                      <Button 
-                        variant="link" 
-                        size="sm" 
+                      <Button
+                        variant="link"
+                        size="sm"
                         onClick={toggleDebug}
                         className="text-muted p-0"
                       >
                         <i className="fas fa-bug"></i> Debug
                       </Button>
                       {debugInfo && (
-                        <div className="small text-start mt-2 p-2 bg-dark text-white rounded" style={{ fontSize: '10px' }}>
-                          <div><strong>ID:</strong> {machine.id}</div>
-                          <div><strong>has_image:</strong> {String(machine.has_image)}</div>
-                          <div><strong>image_path:</strong> {machine.image_path || 'null'}</div>
-                          <div><strong>image_url:</strong> {machine.image_url || 'null'}</div>
-                          <div><strong>isValidUrl:</strong> {String(isValidImageUrl)}</div>
-                          <div><strong>imageError:</strong> {String(imageError)}</div>
+                        <div
+                          className="small text-start mt-2 p-2 bg-dark text-white rounded"
+                          style={{ fontSize: "10px" }}
+                        >
+                          <div>
+                            <strong>ID:</strong> {machine.id}
+                          </div>
+                          <div>
+                            <strong>has_image:</strong>{" "}
+                            {String(machine.has_image)}
+                          </div>
+                          <div>
+                            <strong>image_path:</strong>{" "}
+                            {machine.image_path || "null"}
+                          </div>
+                          <div>
+                            <strong>image_url:</strong>{" "}
+                            {machine.image_url || "null"}
+                          </div>
+                          <div>
+                            <strong>isValidUrl:</strong>{" "}
+                            {String(isValidImageUrl)}
+                          </div>
+                          <div>
+                            <strong>imageError:</strong> {String(imageError)}
+                          </div>
                         </div>
                       )}
                     </div>
@@ -519,32 +591,35 @@ const Machines = () => {
             )}
 
             {/* Badge de statut */}
-            <div className="position-absolute top-0 end-0 m-2" style={{ zIndex: 3 }}>
+            <div
+              className="position-absolute top-0 end-0 m-2"
+              style={{ zIndex: 3 }}
+            >
               {getStatutBadge(machine.statut)}
             </div>
 
             {/* Bouton de suppression d'image */}
-            {user?.role === 'admin' && machine.has_image && !imageError && (
+            {user?.role === "admin" && machine.has_image && !imageError && (
               <Button
                 variant="danger"
                 size="sm"
                 className="position-absolute machine-delete-image-btn"
                 style={{
-                  top: '10px',
-                  left: '10px',
-                  width: '30px',
-                  height: '30px',
-                  padding: '0',
-                  borderRadius: '50%',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  zIndex: 3
+                  top: "10px",
+                  left: "10px",
+                  width: "30px",
+                  height: "30px",
+                  padding: "0",
+                  borderRadius: "50%",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  zIndex: 3,
                 }}
                 onClick={() => handleDeleteImage(machine.id)}
                 title="Supprimer l'image"
               >
-                <i className="fas fa-trash" style={{ fontSize: '12px' }}></i>
+                <i className="fas fa-trash" style={{ fontSize: "12px" }}></i>
               </Button>
             )}
           </div>
@@ -571,14 +646,18 @@ const Machines = () => {
                   <div className="info-item">
                     <i className="fas fa-map-marker-alt text-muted me-1"></i>
                     <small className="text-muted">Localisation:</small>
-                    <div className="fw-semibold">{machine.localisation || '-'}</div>
+                    <div className="fw-semibold">
+                      {machine.localisation || "-"}
+                    </div>
                   </div>
                 </Col>
                 <Col xs={6}>
                   <div className="info-item">
                     <i className="fas fa-wrench text-muted me-1"></i>
                     <small className="text-muted">Maintenance:</small>
-                    <div className="fw-semibold">{formatDate(machine.derniere_maintenance)}</div>
+                    <div className="fw-semibold">
+                      {formatDate(machine.derniere_maintenance)}
+                    </div>
                   </div>
                 </Col>
                 <Col xs={6}>
@@ -595,12 +674,15 @@ const Machines = () => {
               {machine.description && (
                 <div className="mt-3">
                   <small className="text-muted">Description:</small>
-                  <p className="small mb-0" style={{ 
-                    display: '-webkit-box',
-                    WebkitLineClamp: 2,
-                    WebkitBoxOrient: 'vertical',
-                    overflow: 'hidden'
-                  }}>
+                  <p
+                    className="small mb-0"
+                    style={{
+                      display: "-webkit-box",
+                      WebkitLineClamp: 2,
+                      WebkitBoxOrient: "vertical",
+                      overflow: "hidden",
+                    }}
+                  >
                     {machine.description}
                   </p>
                 </div>
@@ -619,11 +701,11 @@ const Machines = () => {
                 <i className="fas fa-eye me-1"></i>
                 Voir détails
               </Button>
-              
-              {user?.role === 'admin' && (
+
+              {user?.role === "admin" && (
                 <Dropdown>
-                  <Dropdown.Toggle 
-                    variant="outline-secondary" 
+                  <Dropdown.Toggle
+                    variant="outline-secondary"
                     size="sm"
                     className="px-2"
                   >
@@ -635,8 +717,8 @@ const Machines = () => {
                       Modifier
                     </Dropdown.Item>
                     <Dropdown.Divider />
-                    <Dropdown.Item 
-                      onClick={() => toast.info('Fonctionnalité à implémenter')}
+                    <Dropdown.Item
+                      onClick={() => toast.info("Fonctionnalité à implémenter")}
                       className="text-warning"
                     >
                       <i className="fas fa-wrench me-2"></i>
@@ -654,32 +736,35 @@ const Machines = () => {
 
   // Fonction de diagnostic pour debug
   const diagnoseMachineImages = async () => {
-    if (process.env.NODE_ENV !== 'development') return;
-    
-    console.group('🔍 Diagnostic des images des machines');
-    
+    if (process.env.NODE_ENV !== "development") return;
+
+    console.group("🔍 Diagnostic des images des machines");
+
     for (const machine of machines) {
       console.log(`\n📋 Machine ${machine.id} (${machine.nom}):`);
-      console.log('  has_image:', machine.has_image);
-      console.log('  image_path:', machine.image_path);
-      console.log('  image_url:', machine.image_url);
-      
+      console.log("  has_image:", machine.has_image);
+      console.log("  image_path:", machine.image_path);
+      console.log("  image_url:", machine.image_url);
+
       if (machine.image_url) {
         try {
-          const response = await fetch(machine.image_url, { method: 'HEAD' });
-          console.log('  URL accessible:', response.ok, `(${response.status})`);
+          const response = await fetch(machine.image_url, { method: "HEAD" });
+          console.log("  URL accessible:", response.ok, `(${response.status})`);
         } catch (error) {
-          console.log('  URL accessible:', false, error.message);
+          console.log("  URL accessible:", false, error.message);
         }
       }
     }
-    
+
     console.groupEnd();
   };
 
   if (loading && machines.length === 0) {
     return (
-      <div className="d-flex justify-content-center align-items-center" style={{ minHeight: '400px' }}>
+      <div
+        className="d-flex justify-content-center align-items-center"
+        style={{ minHeight: "400px" }}
+      >
         <div className="text-center">
           <Spinner animation="border" variant="primary" size="lg" />
           <p className="mt-3 text-muted">Chargement des machines...</p>
@@ -720,7 +805,7 @@ const Machines = () => {
               </Button>
 
               {/* Debug button (développement) */}
-              {process.env.NODE_ENV === 'development' && (
+              {process.env.NODE_ENV === "development" && (
                 <Button
                   variant="outline-info"
                   size="sm"
@@ -734,24 +819,24 @@ const Machines = () => {
               {/* Boutons de vue */}
               <div className="btn-group" role="group">
                 <Button
-                  variant={viewMode === 'cards' ? 'primary' : 'outline-primary'}
+                  variant={viewMode === "cards" ? "primary" : "outline-primary"}
                   size="sm"
-                  onClick={() => setViewMode('cards')}
+                  onClick={() => setViewMode("cards")}
                 >
                   <i className="fas fa-th-large"></i>
                 </Button>
                 <Button
-                  variant={viewMode === 'table' ? 'primary' : 'outline-primary'}
+                  variant={viewMode === "table" ? "primary" : "outline-primary"}
                   size="sm"
-                  onClick={() => setViewMode('table')}
+                  onClick={() => setViewMode("table")}
                 >
                   <i className="fas fa-list"></i>
                 </Button>
               </div>
 
-              {user?.role === 'admin' && (
-                <Button 
-                  variant="primary" 
+              {user?.role === "admin" && (
+                <Button
+                  variant="primary"
                   onClick={() => setShowModal(true)}
                   className="d-flex align-items-center"
                 >
@@ -780,13 +865,13 @@ const Machines = () => {
                 type="text"
                 placeholder="Rechercher une machine..."
                 value={filters.search}
-                onChange={(e) => handleFilterChange('search', e.target.value)}
+                onChange={(e) => handleFilterChange("search", e.target.value)}
               />
             </Col>
             <Col md={2}>
               <Form.Select
                 value={filters.statut}
-                onChange={(e) => handleFilterChange('statut', e.target.value)}
+                onChange={(e) => handleFilterChange("statut", e.target.value)}
               >
                 <option value="">Tous les statuts</option>
                 <option value="actif">Actif</option>
@@ -799,7 +884,9 @@ const Machines = () => {
                 type="text"
                 placeholder="Localisation..."
                 value={filters.localisation}
-                onChange={(e) => handleFilterChange('localisation', e.target.value)}
+                onChange={(e) =>
+                  handleFilterChange("localisation", e.target.value)
+                }
               />
             </Col>
             <Col md={3}>
@@ -807,11 +894,15 @@ const Machines = () => {
                 type="text"
                 placeholder="Modèle..."
                 value={filters.modele}
-                onChange={(e) => handleFilterChange('modele', e.target.value)}
+                onChange={(e) => handleFilterChange("modele", e.target.value)}
               />
             </Col>
             <Col md={1}>
-              <Button variant="outline-secondary" onClick={clearFilters} title="Effacer les filtres">
+              <Button
+                variant="outline-secondary"
+                onClick={clearFilters}
+                title="Effacer les filtres"
+              >
                 <i className="fas fa-times"></i>
               </Button>
             </Col>
@@ -827,21 +918,22 @@ const Machines = () => {
               <i className="fas fa-cogs fa-3x text-muted mb-3"></i>
               <h4>Aucune machine trouvée</h4>
               <p className="text-muted mb-4">
-                {Object.values(filters).some(filter => filter !== '') 
-                  ? 'Aucune machine ne correspond à vos critères de recherche.'
-                  : 'Commencez par créer votre première machine'
-                }
+                {Object.values(filters).some((filter) => filter !== "")
+                  ? "Aucune machine ne correspond à vos critères de recherche."
+                  : "Commencez par créer votre première machine"}
               </p>
-              {Object.values(filters).some(filter => filter !== '') ? (
+              {Object.values(filters).some((filter) => filter !== "") ? (
                 <Button variant="outline-primary" onClick={clearFilters}>
                   <i className="fas fa-times me-2"></i>
                   Effacer les filtres
                 </Button>
-              ) : user?.role === 'admin' && (
-                <Button variant="primary" onClick={() => setShowModal(true)}>
-                  <i className="fas fa-plus me-2"></i>
-                  Créer une machine
-                </Button>
+              ) : (
+                user?.role === "admin" && (
+                  <Button variant="primary" onClick={() => setShowModal(true)}>
+                    <i className="fas fa-plus me-2"></i>
+                    Créer une machine
+                  </Button>
+                )
               )}
             </div>
           </Card.Body>
@@ -849,7 +941,7 @@ const Machines = () => {
       ) : (
         <>
           {/* Affichage en cartes */}
-          {viewMode === 'cards' ? (
+          {viewMode === "cards" ? (
             <Row>
               {machines.map((machine) => (
                 <MachineCard key={machine.id} machine={machine} />
@@ -882,34 +974,45 @@ const Machines = () => {
                                 width="50"
                                 height="50"
                                 className="rounded"
-                                style={{ objectFit: 'cover' }}
+                                style={{ objectFit: "cover" }}
                                 onError={(e) => {
-                                  e.target.style.display = 'none';
-                                  e.target.nextSibling.style.display = 'flex';
+                                  e.target.style.display = "none";
+                                  e.target.nextSibling.style.display = "flex";
                                 }}
                               />
                             ) : (
-                              <div className="bg-light rounded d-flex align-items-center justify-content-center" style={{ width: '50px', height: '50px' }}>
+                              <div
+                                className="bg-light rounded d-flex align-items-center justify-content-center"
+                                style={{ width: "50px", height: "50px" }}
+                              >
                                 <i className="fas fa-image text-muted"></i>
                               </div>
                             )}
                             {/* Fallback pour erreur d'image */}
-                            <div 
-                              className="bg-light rounded d-flex align-items-center justify-content-center" 
-                              style={{ width: '50px', height: '50px', display: 'none' }}
+                            <div
+                              className="bg-light rounded d-flex align-items-center justify-content-center"
+                              style={{
+                                width: "50px",
+                                height: "50px",
+                                display: "none",
+                              }}
                             >
                               <i className="fas fa-exclamation-triangle text-warning"></i>
                             </div>
                           </td>
                           <td>
                             <div className="fw-bold">{machine.nom}</div>
-                            <small className="text-muted">{machine.modele}</small>
+                            <small className="text-muted">
+                              {machine.modele}
+                            </small>
                           </td>
                           <td>
-                            <span className="fw-bold text-primary">{machine.numero_serie}</span>
+                            <span className="fw-bold text-primary">
+                              {machine.numero_serie}
+                            </span>
                           </td>
                           <td>{getStatutBadge(machine.statut)}</td>
-                          <td>{machine.localisation || '-'}</td>
+                          <td>{machine.localisation || "-"}</td>
                           <td>
                             <div className="d-flex gap-1">
                               <Button
@@ -921,7 +1024,7 @@ const Machines = () => {
                               >
                                 <i className="fas fa-eye"></i>
                               </Button>
-                              {user?.role === 'admin' && (
+                              {user?.role === "admin" && (
                                 <>
                                   <Button
                                     variant="outline-warning"
@@ -935,7 +1038,9 @@ const Machines = () => {
                                     <Button
                                       variant="outline-danger"
                                       size="sm"
-                                      onClick={() => handleDeleteImage(machine.id)}
+                                      onClick={() =>
+                                        handleDeleteImage(machine.id)
+                                      }
                                       title="Supprimer l'image"
                                     >
                                       <i className="fas fa-trash"></i>
@@ -958,8 +1063,13 @@ const Machines = () => {
           {pagination.totalPages > 1 && (
             <div className="d-flex justify-content-between align-items-center mt-4">
               <div className="text-muted">
-                Affichage de {((pagination.currentPage - 1) * pagination.perPage) + 1} à{' '}
-                {Math.min(pagination.currentPage * pagination.perPage, pagination.total)} sur {pagination.total} machines
+                Affichage de{" "}
+                {(pagination.currentPage - 1) * pagination.perPage + 1} à{" "}
+                {Math.min(
+                  pagination.currentPage * pagination.perPage,
+                  pagination.total
+                )}{" "}
+                sur {pagination.total} machines
               </div>
               {renderPagination()}
             </div>
@@ -995,7 +1105,8 @@ const Machines = () => {
                       />
                       <Form.Text className="text-muted">
                         <i className="fas fa-info-circle me-1"></i>
-                        Formats acceptés: JPG, PNG, GIF. Taille max: 2MB. Dimensions recommandées: 800x600px
+                        Formats acceptés: JPG, PNG, GIF. Taille max: 2MB.
+                        Dimensions recommandées: 800x600px
                       </Form.Text>
                     </div>
                     {imagePreview && (
@@ -1006,17 +1117,17 @@ const Machines = () => {
                           width="100"
                           height="100"
                           className="rounded object-cover border"
-                          style={{ objectFit: 'cover' }}
+                          style={{ objectFit: "cover" }}
                         />
                         <Button
                           variant="danger"
                           size="sm"
                           className="position-absolute top-0 end-0 p-1"
-                          style={{ 
-                            transform: 'translate(25%, -25%)',
-                            width: '25px',
-                            height: '25px',
-                            fontSize: '12px'
+                          style={{
+                            transform: "translate(25%, -25%)",
+                            width: "25px",
+                            height: "25px",
+                            fontSize: "12px",
                           }}
                           onClick={removeImage}
                           title="Supprimer l'image"
@@ -1150,14 +1261,15 @@ const Machines = () => {
               <i className="fas fa-times me-2"></i>
               Annuler
             </Button>
-            <Button 
-              type="submit" 
-              variant="primary" 
-              disabled={submitting}
-            >
+            <Button type="submit" variant="primary" disabled={submitting}>
               {submitting ? (
                 <>
-                  <Spinner as="span" animation="border" size="sm" className="me-2" />
+                  <Spinner
+                    as="span"
+                    animation="border"
+                    size="sm"
+                    className="me-2"
+                  />
                   Création...
                 </>
               ) : (
@@ -1190,7 +1302,12 @@ const Machines = () => {
                   </Form.Label>
                   <Form.Select
                     value={statutData.statut}
-                    onChange={(e) => setStatutData(prev => ({ ...prev, statut: e.target.value }))}
+                    onChange={(e) =>
+                      setStatutData((prev) => ({
+                        ...prev,
+                        statut: e.target.value,
+                      }))
+                    }
                   >
                     <option value="actif">Actif</option>
                     <option value="inactif">Inactif</option>
@@ -1207,7 +1324,12 @@ const Machines = () => {
                   <Form.Control
                     type="date"
                     value={statutData.derniere_maintenance}
-                    onChange={(e) => setStatutData(prev => ({ ...prev, derniere_maintenance: e.target.value }))}
+                    onChange={(e) =>
+                      setStatutData((prev) => ({
+                        ...prev,
+                        derniere_maintenance: e.target.value,
+                      }))
+                    }
                   />
                   <Form.Text className="text-muted">
                     Mettre à jour la date de dernière maintenance (optionnel)
@@ -1217,18 +1339,22 @@ const Machines = () => {
             </Row>
           </Modal.Body>
           <Modal.Footer>
-            <Button variant="secondary" onClick={() => setShowStatutModal(false)}>
+            <Button
+              variant="secondary"
+              onClick={() => setShowStatutModal(false)}
+            >
               <i className="fas fa-times me-2"></i>
               Annuler
             </Button>
-            <Button 
-              type="submit" 
-              variant="primary" 
-              disabled={submitting}
-            >
+            <Button type="submit" variant="primary" disabled={submitting}>
               {submitting ? (
                 <>
-                  <Spinner as="span" animation="border" size="sm" className="me-2" />
+                  <Spinner
+                    as="span"
+                    animation="border"
+                    size="sm"
+                    className="me-2"
+                  />
                   Mise à jour...
                 </>
               ) : (
@@ -1254,7 +1380,7 @@ const Machines = () => {
 
         .machine-card:hover {
           transform: translateY(-4px);
-          box-shadow: 0 8px 25px rgba(0,0,0,0.15) !important;
+          box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15) !important;
         }
 
         .machine-image-container {
@@ -1278,7 +1404,7 @@ const Machines = () => {
         .machine-image-placeholder {
           height: 200px;
           background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
-          border-bottom: 1px solid rgba(0,0,0,0.125);
+          border-bottom: 1px solid rgba(0, 0, 0, 0.125);
         }
 
         .machine-delete-image-btn {
@@ -1312,7 +1438,7 @@ const Machines = () => {
 
         .card-subtitle {
           font-size: 0.9rem;
-          font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+          font-family: "Monaco", "Menlo", "Ubuntu Mono", monospace;
         }
 
         .btn-group .btn {
@@ -1360,7 +1486,7 @@ const Machines = () => {
         .alert {
           border-radius: 10px;
           border: none;
-          box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
         }
 
         .pagination .page-link {
@@ -1386,7 +1512,7 @@ const Machines = () => {
         .dropdown-menu {
           border: none;
           border-radius: 8px;
-          box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+          box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
           padding: 0.5rem 0;
         }
 
@@ -1438,31 +1564,43 @@ const Machines = () => {
           }
         }
 
-        .machine-card:nth-child(1) { animation-delay: 0.1s; }
-        .machine-card:nth-child(2) { animation-delay: 0.2s; }
-        .machine-card:nth-child(3) { animation-delay: 0.3s; }
-        .machine-card:nth-child(4) { animation-delay: 0.4s; }
-        .machine-card:nth-child(5) { animation-delay: 0.5s; }
-        .machine-card:nth-child(6) { animation-delay: 0.6s; }
+        .machine-card:nth-child(1) {
+          animation-delay: 0.1s;
+        }
+        .machine-card:nth-child(2) {
+          animation-delay: 0.2s;
+        }
+        .machine-card:nth-child(3) {
+          animation-delay: 0.3s;
+        }
+        .machine-card:nth-child(4) {
+          animation-delay: 0.4s;
+        }
+        .machine-card:nth-child(5) {
+          animation-delay: 0.5s;
+        }
+        .machine-card:nth-child(6) {
+          animation-delay: 0.6s;
+        }
 
         /* Responsive */
         @media (max-width: 768px) {
           .machine-card {
             margin-bottom: 1rem;
           }
-          
+
           .machine-image-container {
             height: 150px;
           }
-          
+
           .card-title {
             font-size: 1.1rem;
           }
-          
+
           .info-item {
             margin-bottom: 0.25rem;
           }
-          
+
           .btn-group .btn {
             padding: 0.25rem 0.5rem;
             font-size: 0.875rem;
@@ -1477,15 +1615,15 @@ const Machines = () => {
           .machine-image-container {
             height: 120px;
           }
-          
+
           .card-body {
             padding: 1rem;
           }
-          
+
           .info-item .fw-semibold {
             font-size: 0.8rem;
           }
-          
+
           .info-item small {
             font-size: 0.7rem;
           }
@@ -1509,11 +1647,12 @@ const Machines = () => {
             box-shadow: none !important;
             border: 1px solid #ddd !important;
           }
-          
-          .btn, .dropdown {
+
+          .btn,
+          .dropdown {
             display: none !important;
           }
-          
+
           .machine-image-container {
             height: auto;
           }
