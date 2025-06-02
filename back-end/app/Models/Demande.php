@@ -170,13 +170,18 @@ class Demande extends Model
      * Délai de traitement en jours
      */
     public function getDelaiTraitementAttribute()
-    {
-        if ($this->date_traitement) {
-            return $this->created_at->diffInDays($this->date_traitement);
-        }
-
-        return $this->created_at->diffInDays(now());
+{
+    // Vérifier que created_at n'est pas null
+    if (!$this->created_at) {
+        return null;
     }
+
+    if ($this->date_traitement) {
+        return $this->created_at->diffInDays($this->date_traitement);
+    }
+
+    return $this->created_at->diffInDays(now());
+}
 
     /**
      * Statut formaté pour l'affichage
@@ -419,21 +424,21 @@ class Demande extends Model
      * Obtenir le temps restant jusqu'à la date souhaitée
      */
     public function getTempsRestantAttribute()
-    {
-        if (!$this->date_souhaite) {
-            return null;
-        }
-
-        $diff = now()->diffInDays($this->date_souhaite, false);
-        
-        if ($diff < 0) {
-            return 'Dépassé de ' . abs($diff) . ' jour(s)';
-        } elseif ($diff === 0) {
-            return 'Aujourd\'hui';
-        } else {
-            return 'Dans ' . $diff . ' jour(s)';
-        }
+{
+    if (!$this->date_souhaite) {
+        return null;
     }
+
+    $diff = now()->diffInDays($this->date_souhaite, false);
+    
+    if ($diff < 0) {
+        return 'Dépassé de ' . abs($diff) . ' jour(s)';
+    } elseif ($diff === 0) {
+        return 'Aujourd\'hui';
+    } else {
+        return 'Dans ' . $diff . ' jour(s)';
+    }
+}
 
     // ===================================
     // EVENTS ET OBSERVERS
@@ -442,44 +447,56 @@ class Demande extends Model
     /**
      * Boot du modèle
      */
-    protected static function boot()
-    {
-        parent::boot();
+   protected static function boot()
+{
+    parent::boot();
 
-        // Générer automatiquement le numéro de demande à la création
-        static::creating(function ($demande) {
-            if (empty($demande->numero_demande)) {
-                $demande->numero_demande = self::genererNumeroDemande();
-            }
+    // Générer automatiquement le numéro de demande à la création
+    static::creating(function ($demande) {
+        if (empty($demande->numero_demande)) {
+            $demande->numero_demande = self::genererNumeroDemande();
+        }
 
-            // Définir les valeurs par défaut
-            if (empty($demande->priorite)) {
-                $demande->priorite = 'normale';
-            }
+        // Définir les valeurs par défaut
+        if (empty($demande->priorite)) {
+            $demande->priorite = 'normale';
+        }
 
-            if (empty($demande->statut)) {
-                $demande->statut = 'en_attente';
-            }
+        if (empty($demande->statut)) {
+            $demande->statut = 'en_attente';
+        }
 
-            if (empty($demande->quantite_demandee)) {
-                $demande->quantite_demandee = 1;
-            }
-        });
+        if (empty($demande->quantite_demandee)) {
+            $demande->quantite_demandee = 1;
+        }
 
-        // Après la création, notifier les admins
-        static::created(function ($demande) {
-            // Notifier les administrateurs d'une nouvelle demande
+        // S'assurer que created_at est défini
+        if (!$demande->created_at) {
+            $demande->created_at = now();
+        }
+    });
+
+    // Après la création, notifier les admins
+    static::created(function ($demande) {
+        // Notifier les administrateurs d'une nouvelle demande
+        try {
             Notification::notifierNouvelleDemandeAdmin($demande);
-        });
+        } catch (\Exception $e) {
+            \Log::error('Erreur lors de la notification de nouvelle demande:', [
+                'demande_id' => $demande->id,
+                'error' => $e->getMessage()
+            ]);
+        }
+    });
 
-        // Après mise à jour, vérifier les changements de statut
-        static::updated(function ($demande) {
-            // Si le statut a changé et qu'il y a un admin qui a traité
-            if ($demande->wasChanged('statut') && $demande->traite_par) {
-                // La notification est déjà gérée par les méthodes accepter/refuser/etc.
-            }
-        });
-    }
+    // Après mise à jour, vérifier les changements de statut
+    static::updated(function ($demande) {
+        // Si le statut a changé et qu'il y a un admin qui a traité
+        if ($demande->wasChanged('statut') && $demande->traite_par) {
+            // La notification est déjà gérée par les méthodes accepter/refuser/etc.
+        }
+    });
+}
 
     // ===================================
     // MÉTHODES STATIQUES UTILES

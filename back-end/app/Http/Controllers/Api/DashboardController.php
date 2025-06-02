@@ -13,6 +13,7 @@ use App\Models\Notification;
 use Illuminate\Http\Request;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class DashboardController extends Controller
 {
@@ -139,8 +140,9 @@ class DashboardController extends Controller
     }
 
     private function dashboardUser($user)
-    {
-        // Statistiques personnelles
+{
+    try {
+        // Statistiques personnelles avec vérifications
         $mes_statistiques = [
             'mes_demandes' => [
                 'total' => $user->demandes()->count(),
@@ -155,15 +157,42 @@ class DashboardController extends Controller
             ]
         ];
 
-        // Mes demandes récentes
+        // Mes demandes récentes avec vérification des attributs
         $mes_demandes_recentes = $user->demandes()
             ->with(['machine', 'composant'])
+            ->whereNotNull('created_at') // S'assurer que created_at existe
             ->orderBy('created_at', 'desc')
             ->take(10)
             ->get()
             ->map(function ($demande) {
-                $demande->append(['statut_color', 'priorite_color']);
-                return $demande;
+                try {
+                    // Ajouter les attributs calculés de manière sécurisée
+                    $demande->statut_color = $demande->statut_color ?? 'secondary';
+                    $demande->priorite_color = $demande->priorite_color ?? 'info';
+                    
+                    // Calculer le délai de traitement de manière sécurisée
+                    if ($demande->created_at && $demande->date_traitement) {
+                        $demande->delai_traitement = $demande->created_at->diffInDays($demande->date_traitement);
+                    } elseif ($demande->created_at) {
+                        $demande->delai_traitement = $demande->created_at->diffInDays(now());
+                    } else {
+                        $demande->delai_traitement = null;
+                    }
+                    
+                    return $demande;
+                } catch (\Exception $e) {
+                    \Log::warning('Erreur lors du traitement d\'une demande pour dashboard user:', [
+                        'demande_id' => $demande->id ?? 'unknown',
+                        'user_id' => $user->id,
+                        'error' => $e->getMessage()
+                    ]);
+                    
+                    // Retourner la demande avec des valeurs par défaut
+                    $demande->statut_color = 'secondary';
+                    $demande->priorite_color = 'info';
+                    $demande->delai_traitement = null;
+                    return $demande;
+                }
             });
 
         // Statistiques générales (limitées pour les utilisateurs)
@@ -205,7 +234,51 @@ class DashboardController extends Controller
                 'resume' => $this->genererResumeUser($user, $mes_statistiques),
             ]
         ]);
+        
+    } catch (\Exception $e) {
+        Log::error('Erreur dans dashboardUser:', [
+            'user_id' => $user->id,
+            'error' => $e->getMessage(),
+            'trace' => $e->getTraceAsString()
+        ]);
+        
+        // Retourner un dashboard minimal en cas d'erreur
+        return response()->json([
+            'message' => 'Dashboard utilisateur récupéré avec succès (mode minimal)',
+            'data' => [
+                'mes_statistiques' => [
+                    'mes_demandes' => [
+                        'total' => 0,
+                        'en_attente' => 0,
+                        'acceptees' => 0,
+                        'refusees' => 0,
+                        'terminees' => 0,
+                        'ce_mois' => 0,
+                    ]
+                ],
+                'mes_demandes_recentes' => [],
+                'statistiques_generales' => [
+                    'machines' => ['total' => 0, 'actives' => 0],
+                    'composants' => ['total' => 0, 'bon' => 0],
+                ],
+                'alertes_importantes' => [
+                    'machines_en_maintenance' => [],
+                    'composants_defaillants_count' => 0,
+                ],
+                'mes_graphiques' => [
+                    'mes_demandes_par_mois' => [],
+                    'mes_demandes_par_type' => [],
+                    'mes_demandes_par_statut' => [],
+                ],
+                'resume' => [[
+                    'type' => 'warning',
+                    'message' => 'Erreur lors du chargement du dashboard',
+                    'action' => 'Actualiser la page'
+                ]],
+            ]
+        ]);
     }
+}
 
     // Méthodes pour les graphiques Admin
     private function getDemandesParMois()
@@ -269,39 +342,69 @@ class DashboardController extends Controller
 
     // Méthodes pour les graphiques User
     private function getMesDemandesParMois($user)
-    {
+{
+    try {
         return $user->demandes()
             ->select(
                 DB::raw('YEAR(created_at) as annee'),
                 DB::raw('MONTH(created_at) as mois'),
                 DB::raw('COUNT(*) as total')
             )
+            ->whereNotNull('created_at') // Vérification importante
             ->where('created_at', '>=', Carbon::now()->subMonths(12))
             ->groupBy('annee', 'mois')
             ->orderBy('annee', 'asc')
             ->orderBy('mois', 'asc')
             ->get()
             ->map(function ($item) {
-                $item->periode = Carbon::create($item->annee, $item->mois, 1)->format('M Y');
-                return $item;
+                try {
+                    $item->periode = Carbon::create($item->annee, $item->mois, 1)->format('M Y');
+                    return $item;
+                } catch (\Exception $e) {
+                    $item->periode = 'Inconnu';
+                    return $item;
+                }
             });
+    } catch (\Exception $e) {
+        Log::error('Erreur dans getMesDemandesParMois:', [
+            'user_id' => $user->id,
+            'error' => $e->getMessage()
+        ]);
+        return collect([]);
     }
+}
 
     private function getMesDemandesParType($user)
-    {
+{
+    try {
         return $user->demandes()
             ->select('type_demande', DB::raw('COUNT(*) as total'))
             ->groupBy('type_demande')
             ->get();
+    } catch (\Exception $e) {
+        Log::error('Erreur dans getMesDemandesParType:', [
+            'user_id' => $user->id,
+            'error' => $e->getMessage()
+        ]);
+        return collect([]);
     }
+}
 
     private function getMesDemandesParStatut($user)
-    {
+{
+    try {
         return $user->demandes()
             ->select('statut', DB::raw('COUNT(*) as total'))
             ->groupBy('statut')
             ->get();
+    } catch (\Exception $e) {
+        Log::error('Erreur dans getMesDemandesParStatut:', [
+            'user_id' => $user->id,
+            'error' => $e->getMessage()
+        ]);
+        return collect([]);
     }
+}
 
     // Méthodes pour les résumés
     private function genererResumeAdmin($statistiques, $alertes)

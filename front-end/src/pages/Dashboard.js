@@ -1,4 +1,4 @@
-// src/pages/Dashboard.js
+// src/pages/Dashboard.js - Version corrigée sans jsx invalide
 import React, { useState, useEffect } from 'react';
 import { Row, Col, Card, Badge, Alert, Spinner, Button } from 'react-bootstrap';
 import { Link } from 'react-router-dom';
@@ -6,12 +6,271 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import { useAuth } from '../contexts/AuthContext';
 import apiService from '../services/apiService';
 
+// Styles CSS à placer dans un fichier séparé ou dans index.css
+const dashboardStyles = `
+  .stat-card {
+    transition: all 0.3s ease;
+    border-radius: 12px;
+  }
+
+  .stat-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(0,0,0,0.1) !important;
+  }
+
+  .stat-icon {
+    width: 60px;
+    height: 60px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  }
+
+  .notification-item {
+    background: rgba(0,123,255,0.05);
+    border-radius: 8px;
+    transition: all 0.2s ease;
+  }
+
+  .notification-item:hover {
+    background: rgba(0,123,255,0.1);
+    transform: translateX(2px);
+  }
+
+  .action-btn {
+    border: 2px solid;
+    border-radius: 12px;
+    transition: all 0.3s ease;
+  }
+
+  .action-btn:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+  }
+
+  .card {
+    border-radius: 12px;
+    border: none;
+  }
+
+  .card-header {
+    border-radius: 12px 12px 0 0;
+  }
+
+  .table th {
+    border-top: none;
+    border-bottom: 2px solid #e9ecef;
+    font-weight: 600;
+    color: #495057;
+    background-color: transparent;
+  }
+
+  .table td {
+    border-top: 1px solid #f1f3f4;
+    vertical-align: middle;
+  }
+
+  .table tbody tr:hover {
+    background-color: #f8f9fa;
+  }
+
+  .alert {
+    border-radius: 10px;
+    border: none;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+  }
+
+  .badge {
+    font-size: 0.75rem;
+    padding: 0.35em 0.65em;
+  }
+
+  @media (max-width: 768px) {
+    .stat-icon {
+      width: 50px;
+      height: 50px;
+      font-size: 1.2rem;
+    }
+
+    .card-title {
+      font-size: 0.9rem;
+    }
+
+    h3 {
+      font-size: 1.5rem;
+    }
+
+    .action-btn {
+      min-height: 80px !important;
+    }
+
+    .action-btn i {
+      font-size: 1.5rem !important;
+    }
+
+    .table-responsive {
+      font-size: 0.9rem;
+    }
+  }
+
+  @media (max-width: 576px) {
+    .stat-card .card-body {
+      padding: 1rem;
+    }
+
+    .notification-item {
+      padding: 0.75rem !important;
+    }
+
+    .action-btn {
+      min-height: 70px !important;
+      padding: 0.75rem !important;
+    }
+
+    .action-btn span {
+      font-size: 0.9rem;
+    }
+
+    .action-btn small {
+      font-size: 0.75rem;
+    }
+  }
+
+  .fa-sync-alt {
+    transition: transform 0.3s ease;
+  }
+
+  .fa-sync-alt:hover {
+    transform: rotate(180deg);
+  }
+
+  .custom-tooltip {
+    background: rgba(0,0,0,0.8);
+    border: none;
+    border-radius: 8px;
+    color: white;
+  }
+
+  @keyframes fadeInUp {
+    from {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .card {
+    animation: fadeInUp 0.5s ease-out;
+  }
+
+  .bg-primary {
+    background: linear-gradient(135deg, #007bff 0%, #0056b3 100%) !important;
+  }
+
+  .bg-success {
+    background: linear-gradient(135deg, #28a745 0%, #1e7e34 100%) !important;
+  }
+
+  .bg-info {
+    background: linear-gradient(135deg, #17a2b8 0%, #117a8b 100%) !important;
+  }
+
+  .bg-warning {
+    background: linear-gradient(135deg, #ffc107 0%, #e0a800 100%) !important;
+  }
+
+  .bg-danger {
+    background: linear-gradient(135deg, #dc3545 0%, #bd2130 100%) !important;
+  }
+
+  .card a {
+    text-decoration: none;
+    transition: color 0.2s ease;
+  }
+
+  .card a:hover {
+    text-decoration: underline;
+  }
+
+  .badge {
+    text-transform: capitalize;
+    letter-spacing: 0.5px;
+  }
+
+  .alert-danger {
+    background: linear-gradient(135deg, #f8d7da 0%, #f5c6cb 100%);
+    border-left: 4px solid #dc3545;
+  }
+
+  .alert-warning {
+    background: linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%);
+    border-left: 4px solid #ffc107;
+  }
+
+  .alert-info {
+    background: linear-gradient(135deg, #d1ecf1 0%, #bee5eb 100%);
+    border-left: 4px solid #17a2b8;
+  }
+
+  .alert-success {
+    background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
+    border-left: 4px solid #28a745;
+  }
+
+  @media (min-width: 1200px) {
+    .container-fluid {
+      max-width: 1400px;
+    }
+  }
+
+  @media print {
+    .btn, .alert .btn {
+      display: none !important;
+    }
+    
+    .card {
+      border: 1px solid #ddd !important;
+      break-inside: avoid;
+    }
+    
+    .stat-card:hover {
+      transform: none !important;
+      box-shadow: none !important;
+    }
+  }
+`;
+
 const Dashboard = () => {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [dashboardData, setDashboardData] = useState(null);
   const [statistiquesRapides, setStatistiquesRapides] = useState({});
   const [refreshing, setRefreshing] = useState(false);
+
+  // Injecter les styles dans le document (une seule fois)
+  useEffect(() => {
+    const styleId = 'dashboard-styles';
+    if (!document.getElementById(styleId)) {
+      const style = document.createElement('style');
+      style.id = styleId;
+      style.textContent = dashboardStyles;
+      document.head.appendChild(style);
+    }
+
+    // Cleanup function pour supprimer les styles quand le composant est démonté
+    return () => {
+      const existingStyle = document.getElementById(styleId);
+      if (existingStyle) {
+        existingStyle.remove();
+      }
+    };
+  }, []);
 
   useEffect(() => {
     loadDashboardData();
@@ -630,260 +889,6 @@ const Dashboard = () => {
           </Card>
         </Col>
       </Row>
-
-      {/* Styles personnalisés */}
-      <style jsx>{`
-        .stat-card {
-          transition: all 0.3s ease;
-          border-radius: 12px;
-        }
-
-        .stat-card:hover {
-          transform: translateY(-2px);
-          box-shadow: 0 8px 25px rgba(0,0,0,0.1) !important;
-        }
-
-        .stat-icon {
-          width: 60px;
-          height: 60px;
-          border-radius: 12px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-size: 1.5rem;
-          box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-        }
-
-        .notification-item {
-          background: rgba(0,123,255,0.05);
-          border-radius: 8px;
-          transition: all 0.2s ease;
-        }
-
-        .notification-item:hover {
-          background: rgba(0,123,255,0.1);
-          transform: translateX(2px);
-        }
-
-        .action-btn {
-          border: 2px solid;
-          border-radius: 12px;
-          transition: all 0.3s ease;
-        }
-
-        .action-btn:hover {
-          transform: translateY(-4px);
-          box-shadow: 0 8px 25px rgba(0,0,0,0.15);
-        }
-
-        .card {
-          border-radius: 12px;
-          border: none;
-        }
-
-        .card-header {
-          border-radius: 12px 12px 0 0;
-        }
-
-        .table th {
-          border-top: none;
-          border-bottom: 2px solid #e9ecef;
-          font-weight: 600;
-          color: #495057;
-          background-color: transparent;
-        }
-
-        .table td {
-          border-top: 1px solid #f1f3f4;
-          vertical-align: middle;
-        }
-
-        .table tbody tr:hover {
-          background-color: #f8f9fa;
-        }
-
-        .alert {
-          border-radius: 10px;
-          border: none;
-          box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-        }
-
-        .badge {
-          font-size: 0.75rem;
-          padding: 0.35em 0.65em;
-        }
-
-        @media (max-width: 768px) {
-          .stat-icon {
-            width: 50px;
-            height: 50px;
-            font-size: 1.2rem;
-          }
-
-          .card-title {
-            font-size: 0.9rem;
-          }
-
-          h3 {
-            font-size: 1.5rem;
-          }
-
-          .action-btn {
-            min-height: 80px !important;
-          }
-
-          .action-btn i {
-            font-size: 1.5rem !important;
-          }
-
-          .table-responsive {
-            font-size: 0.9rem;
-          }
-        }
-
-        @media (max-width: 576px) {
-          .stat-card .card-body {
-            padding: 1rem;
-          }
-
-          .notification-item {
-            padding: 0.75rem !important;
-          }
-
-          .action-btn {
-            min-height: 70px !important;
-            padding: 0.75rem !important;
-          }
-
-          .action-btn span {
-            font-size: 0.9rem;
-          }
-
-          .action-btn small {
-            font-size: 0.75rem;
-          }
-        }
-
-        /* Animation pour le spinner de rafraîchissement */
-        @keyframes spin {
-          0% { transform: rotate(0deg); }
-          100% { transform: rotate(360deg); }
-        }
-
-        .fa-sync-alt {
-          transition: transform 0.3s ease;
-        }
-
-        .fa-sync-alt:hover {
-          transform: rotate(180deg);
-        }
-
-        /* Styles pour les tooltips personnalisés */
-        .custom-tooltip {
-          background: rgba(0,0,0,0.8);
-          border: none;
-          border-radius: 8px;
-          color: white;
-        }
-
-        /* Animation pour les cartes */
-        @keyframes fadeInUp {
-          from {
-            opacity: 0;
-            transform: translateY(20px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
-
-        .card {
-          animation: fadeInUp 0.5s ease-out;
-        }
-
-        /* Gradient pour les statistiques importantes */
-        .bg-primary {
-          background: linear-gradient(135deg, #007bff 0%, #0056b3 100%) !important;
-        }
-
-        .bg-success {
-          background: linear-gradient(135deg, #28a745 0%, #1e7e34 100%) !important;
-        }
-
-        .bg-info {
-          background: linear-gradient(135deg, #17a2b8 0%, #117a8b 100%) !important;
-        }
-
-        .bg-warning {
-          background: linear-gradient(135deg, #ffc107 0%, #e0a800 100%) !important;
-        }
-
-        .bg-danger {
-          background: linear-gradient(135deg, #dc3545 0%, #bd2130 100%) !important;
-        }
-
-        /* Style pour les liens dans les cartes */
-        .card a {
-          text-decoration: none;
-          transition: color 0.2s ease;
-        }
-
-        .card a:hover {
-          text-decoration: underline;
-        }
-
-        /* Amélioration des badges */
-        .badge {
-          text-transform: capitalize;
-          letter-spacing: 0.5px;
-        }
-
-        /* Style pour les alertes importantes */
-        .alert-danger {
-          background: linear-gradient(135deg, #f8d7da 0%, #f5c6cb 100%);
-          border-left: 4px solid #dc3545;
-        }
-
-        .alert-warning {
-          background: linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%);
-          border-left: 4px solid #ffc107;
-        }
-
-        .alert-info {
-          background: linear-gradient(135deg, #d1ecf1 0%, #bee5eb 100%);
-          border-left: 4px solid #17a2b8;
-        }
-
-        .alert-success {
-          background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
-          border-left: 4px solid #28a745;
-        }
-
-        /* Responsive improvements */
-        @media (min-width: 1200px) {
-          .container-fluid {
-            max-width: 1400px;
-          }
-        }
-
-        /* Print styles */
-        @media print {
-          .btn, .alert .btn {
-            display: none !important;
-          }
-          
-          .card {
-            border: 1px solid #ddd !important;
-            break-inside: avoid;
-          }
-          
-          .stat-card:hover {
-            transform: none !important;
-            box-shadow: none !important;
-          }
-        }
-      `}</style>
     </div>
   );
 };
