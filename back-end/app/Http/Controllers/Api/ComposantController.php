@@ -101,107 +101,120 @@ class ComposantController extends Controller
     }
 
     public function store(Request $request)
-    {
-        try {
-            Log::info('Données reçues pour création composant:', [
-                'request_data' => $request->except(['image']),
-                'has_file' => $request->hasFile('image'),
-                'content_type' => $request->header('Content-Type')
-            ]);
+{
+    try {
+        Log::info('Données reçues pour création composant:', [
+            'request_data' => $request->except(['image']),
+            'has_file' => $request->hasFile('image'),
+            'content_type' => $request->header('Content-Type')
+        ]);
 
-            $rules = [
-                'nom' => 'required|string|max:100',
-                'reference' => 'required|string|max:50|unique:composants,reference',
-                'machine_id' => 'required|exists:machines,id',
-                'type_id' => 'required|exists:types,id',
-                'description' => 'nullable|string',
-                'statut' => 'sometimes|in:bon,usure,defaillant,remplace',
-                'quantite' => 'required|integer|min:1',
-                'prix_unitaire' => 'nullable|numeric|min:0',
-                'fournisseur' => 'nullable|string|max:100',
-                'date_installation' => 'nullable|date',
-                'derniere_inspection' => 'nullable|date',
-                'prochaine_inspection' => 'nullable|date|after:derniere_inspection',
-                'duree_vie_estimee' => 'nullable|integer|min:1',
-                'notes' => 'nullable|string',
-                'caracteristiques' => 'nullable|string',
+        $rules = [
+            'nom' => 'required|string|max:100',
+            'reference' => 'required|string|max:50|unique:composants,reference',
+            'machine_id' => 'required|exists:machines,id',
+            'type_id' => 'required|exists:types,id',
+            'description' => 'nullable|string',
+            'statut' => 'sometimes|in:bon,usure,defaillant,remplace',
+            'quantite' => 'required|integer|min:1',
+            'prix_unitaire' => 'nullable|numeric|min:0',
+            'fournisseur' => 'nullable|string|max:100',
+            'date_installation' => 'nullable|date',
+            'derniere_inspection' => 'nullable|date',
+            'prochaine_inspection' => 'nullable|date|after:derniere_inspection',
+            // CORRECTION: Règle plus permissive pour duree_vie_estimee
+            'duree_vie_estimee' => 'nullable|integer|min:1',
+            'notes' => 'nullable|string',
+            'caracteristiques' => 'nullable|string',
+        ];
+
+        // CORRECTION: Validation d'image plus permissive
+        if ($request->hasFile('image')) {
+            $rules['image'] = [
+                'required',
+                'image',
+                'mimes:jpeg,png,jpg,gif,webp', // Ajout de webp
+                'max:5120', // Augmentation à 5MB
+                // CORRECTION: Dimensions plus permissives
+                'dimensions:min_width=50,min_height=50,max_width=4000,max_height=4000'
             ];
-
-            // Validation d'image
-            if ($request->hasFile('image')) {
-                $rules['image'] = [
-                    'required',
-                    'image',
-                    'mimes:jpeg,png,jpg,gif',
-                    'max:2048',
-                    'dimensions:min_width=100,min_height=100,max_width=2000,max_height=2000'
-                ];
-            }
-
-            $validatedData = $request->validate($rules);
-
-            // Traiter caracteristiques si c'est du JSON
-            if (isset($validatedData['caracteristiques'])) {
-                $specs = $validatedData['caracteristiques'];
-                if (is_string($specs)) {
-                    $decodedSpecs = json_decode($specs, true);
-                    $validatedData['caracteristiques'] = $decodedSpecs ?: [];
-                }
-            }
-
-            // Gestion de l'upload d'image
-            if ($request->hasFile('image')) {
-                $imagePath = $this->uploadImage($request->file('image'));
-                $validatedData['image_path'] = $imagePath;
-                
-                Log::info('Image uploadée pour composant:', [
-                    'image_path' => $imagePath,
-                    'file_size' => $request->file('image')->getSize()
-                ]);
-            }
-
-            // Supprimer le champ image des données à sauvegarder
-            unset($validatedData['image']);
-
-            $composant = Composant::create($validatedData);
-            $composant->load(['machine', 'type']);
-            
-            // Ajouter l'URL de l'image à la réponse
-            if ($composant->image_path && Storage::disk('public')->exists($composant->image_path)) {
-                $composant->image_url = url('storage/' . $composant->image_path);
-                $composant->has_image = true;
-            } else {
-                $composant->image_url = null;
-                $composant->has_image = false;
-            }
-
-            return response()->json([
-                'message' => 'Composant créé avec succès',
-                'data' => $composant
-            ], 201);
-
-        } catch (ValidationException $e) {
-            Log::error('Erreur de validation composant:', [
-                'errors' => $e->errors(),
-                'request_data' => $request->except(['image'])
-            ]);
-            
-            return response()->json([
-                'message' => 'Erreur de validation',
-                'errors' => $e->errors()
-            ], 422);
-        } catch (\Exception $e) {
-            Log::error('Erreur création composant:', [
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
-            ]);
-            
-            return response()->json([
-                'message' => 'Erreur lors de la création du composant',
-                'error' => $e->getMessage()
-            ], 500);
         }
+
+        $validatedData = $request->validate($rules);
+
+        // CORRECTION: Traitement amélioré de duree_vie_estimee
+        if (isset($validatedData['duree_vie_estimee'])) {
+            $duree = $validatedData['duree_vie_estimee'];
+            // Gérer les cas où la valeur est "null", "", ou null
+            if ($duree === 'null' || $duree === '' || is_null($duree)) {
+                $validatedData['duree_vie_estimee'] = null;
+            } else {
+                $validatedData['duree_vie_estimee'] = (int) $duree;
+            }
+        }
+
+        // Traiter caracteristiques si c'est du JSON
+        if (isset($validatedData['caracteristiques'])) {
+            $specs = $validatedData['caracteristiques'];
+            if (is_string($specs)) {
+                $decodedSpecs = json_decode($specs, true);
+                $validatedData['caracteristiques'] = $decodedSpecs ?: [];
+            }
+        }
+
+        // Gestion de l'upload d'image
+        if ($request->hasFile('image')) {
+            $imagePath = $this->uploadImage($request->file('image'));
+            $validatedData['image_path'] = $imagePath;
+            
+            Log::info('Image uploadée pour composant:', [
+                'image_path' => $imagePath,
+                'file_size' => $request->file('image')->getSize()
+            ]);
+        }
+
+        // Supprimer le champ image des données à sauvegarder
+        unset($validatedData['image']);
+
+        $composant = Composant::create($validatedData);
+        $composant->load(['machine', 'type']);
+        
+        // Ajouter l'URL de l'image à la réponse
+        if ($composant->image_path && Storage::disk('public')->exists($composant->image_path)) {
+            $composant->image_url = url('storage/' . $composant->image_path);
+            $composant->has_image = true;
+        } else {
+            $composant->image_url = null;
+            $composant->has_image = false;
+        }
+
+        return response()->json([
+            'message' => 'Composant créé avec succès',
+            'data' => $composant
+        ], 201);
+
+    } catch (ValidationException $e) {
+        Log::error('Erreur de validation composant:', [
+            'errors' => $e->errors(),
+            'request_data' => $request->except(['image'])
+        ]);
+        
+        return response()->json([
+            'message' => 'Erreur de validation',
+            'errors' => $e->errors()
+        ], 422);
+    } catch (\Exception $e) {
+        Log::error('Erreur création composant:', [
+            'error' => $e->getMessage(),
+            'trace' => $e->getTraceAsString()
+        ]);
+        
+        return response()->json([
+            'message' => 'Erreur lors de la création du composant',
+            'error' => $e->getMessage()
+        ], 500);
     }
+}
 
     public function show($id)
     {
@@ -433,58 +446,81 @@ class ComposantController extends Controller
 
     // Méthode privée pour gérer l'upload d'image
     private function uploadImage($image)
-    {
-        try {
-            // Vérifier que le dossier existe
-            if (!Storage::disk('public')->exists('composants')) {
-                Storage::disk('public')->makeDirectory('composants');
-                Log::info('Dossier composants créé');
-            }
-
-            // Valider l'image
-            $allowedMimes = ['image/jpeg', 'image/png', 'image/jpg', 'image/gif'];
-            if (!in_array($image->getMimeType(), $allowedMimes)) {
-                throw new \Exception('Type de fichier non autorisé: ' . $image->getMimeType());
-            }
-
-            // Vérifier la taille
-            if ($image->getSize() > 2048 * 1024) { // 2MB
-                throw new \Exception('Fichier trop volumineux: ' . round($image->getSize() / 1024 / 1024, 2) . 'MB');
-            }
-
-            // Générer un nom unique pour l'image
-            $fileName = 'composant_' . time() . '_' . uniqid() . '.' . $image->getClientOriginalExtension();
-            
-            // Stocker l'image dans le dossier public/composants
-            $imagePath = $image->storeAs('composants', $fileName, 'public');
-            
-            // Vérifier que l'image a bien été stockée
-            if (!Storage::disk('public')->exists($imagePath)) {
-                throw new \Exception('Échec de l\'enregistrement de l\'image');
-            }
-            
-            Log::info('Image composant uploadée avec succès:', [
-                'original_name' => $image->getClientOriginalName(),
-                'stored_path' => $imagePath,
-                'stored_name' => $fileName,
-                'file_size' => $image->getSize(),
-                'mime_type' => $image->getMimeType(),
-                'full_url' => url('storage/' . $imagePath)
-            ]);
-            
-            return $imagePath;
-        } catch (\Exception $e) {
-            Log::error('Erreur upload image composant:', [
-                'error' => $e->getMessage(),
-                'file_info' => [
-                    'name' => $image->getClientOriginalName(),
-                    'size' => $image->getSize(),
-                    'mime' => $image->getMimeType()
-                ]
-            ]);
-            throw $e;
+{
+    try {
+        // Vérifier que le dossier existe
+        if (!Storage::disk('public')->exists('composants')) {
+            Storage::disk('public')->makeDirectory('composants');
+            Log::info('Dossier composants créé');
         }
+
+        // CORRECTION: Validation plus permissive
+        $allowedMimes = ['image/jpeg', 'image/png', 'image/jpg', 'image/gif', 'image/webp'];
+        if (!in_array($image->getMimeType(), $allowedMimes)) {
+            throw new \Exception('Type de fichier non autorisé: ' . $image->getMimeType());
+        }
+
+        // CORRECTION: Augmentation de la taille maximale à 5MB
+        if ($image->getSize() > 5120 * 1024) { // 5MB
+            throw new \Exception('Fichier trop volumineux: ' . round($image->getSize() / 1024 / 1024, 2) . 'MB');
+        }
+
+        // CORRECTION: Validation des dimensions plus permissive
+        try {
+            $imageInfo = getimagesize($image->getPathname());
+            if ($imageInfo) {
+                $width = $imageInfo[0];
+                $height = $imageInfo[1];
+                
+                // Dimensions minimales plus petites
+                if ($width < 50 || $height < 50) {
+                    throw new \Exception('L\'image doit faire au moins 50x50 pixels');
+                }
+                
+                // Dimensions maximales plus grandes
+                if ($width > 4000 || $height > 4000) {
+                    throw new \Exception('L\'image ne doit pas dépasser 4000x4000 pixels');
+                }
+            }
+        } catch (\Exception $e) {
+            // Si on ne peut pas lire les dimensions, on continue quand même
+            Log::warning('Impossible de lire les dimensions de l\'image: ' . $e->getMessage());
+        }
+
+        // Générer un nom unique pour l'image
+        $fileName = 'composant_' . time() . '_' . uniqid() . '.' . $image->getClientOriginalExtension();
+        
+        // Stocker l'image dans le dossier public/composants
+        $imagePath = $image->storeAs('composants', $fileName, 'public');
+        
+        // Vérifier que l'image a bien été stockée
+        if (!Storage::disk('public')->exists($imagePath)) {
+            throw new \Exception('Échec de l\'enregistrement de l\'image');
+        }
+        
+        Log::info('Image composant uploadée avec succès:', [
+            'original_name' => $image->getClientOriginalName(),
+            'stored_path' => $imagePath,
+            'stored_name' => $fileName,
+            'file_size' => $image->getSize(),
+            'mime_type' => $image->getMimeType(),
+            'dimensions' => isset($imageInfo) ? $imageInfo[0] . 'x' . $imageInfo[1] : 'inconnues',
+            'full_url' => url('storage/' . $imagePath)
+        ]);
+        
+        return $imagePath;
+    } catch (\Exception $e) {
+        Log::error('Erreur upload image composant:', [
+            'error' => $e->getMessage(),
+            'file_info' => [
+                'name' => $image->getClientOriginalName(),
+                'size' => $image->getSize(),
+                'mime' => $image->getMimeType()
+            ]
+        ]);
+        throw $e;
     }
+}
 
     // Méthode pour supprimer un fichier image
     private function deleteImageFile($imagePath)

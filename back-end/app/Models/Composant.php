@@ -248,49 +248,50 @@ class Composant extends Model
 
     // Méthode pour valider une image avant upload
     public static function validateImageFile($file)
-    {
-        $errors = [];
-        
-        if (!$file) {
-            return ['valid' => true, 'errors' => []];
-        }
-
-        // Vérifier le type MIME
-        $allowedMimes = ['image/jpeg', 'image/png', 'image/jpg', 'image/gif'];
-        if (!in_array($file->getMimeType(), $allowedMimes)) {
-            $errors[] = 'Type de fichier non autorisé. Utilisez: JPG, PNG, GIF';
-        }
-
-        // Vérifier la taille (2MB max)
-        $maxSize = 2 * 1024 * 1024; // 2MB
-        if ($file->getSize() > $maxSize) {
-            $errors[] = 'L\'image ne doit pas dépasser 2MB';
-        }
-
-        // Vérifier les dimensions si c'est une image
-        try {
-            $imageInfo = getimagesize($file->getPathname());
-            if ($imageInfo) {
-                $width = $imageInfo[0];
-                $height = $imageInfo[1];
-                
-                if ($width < 100 || $height < 100) {
-                    $errors[] = 'L\'image doit faire au moins 100x100 pixels';
-                }
-                
-                if ($width > 2000 || $height > 2000) {
-                    $errors[] = 'L\'image ne doit pas dépasser 2000x2000 pixels';
-                }
-            }
-        } catch (\Exception $e) {
-            $errors[] = 'Impossible de lire les dimensions de l\'image';
-        }
-
-        return [
-            'valid' => empty($errors),
-            'errors' => $errors
-        ];
+{
+    $errors = [];
+    
+    if (!$file) {
+        return ['valid' => true, 'errors' => []];
     }
+
+    // Vérifier le type MIME (plus permissif)
+    $allowedMimes = ['image/jpeg', 'image/png', 'image/jpg', 'image/gif', 'image/webp'];
+    if (!in_array($file->getMimeType(), $allowedMimes)) {
+        $errors[] = 'Type de fichier non autorisé. Utilisez: JPG, PNG, GIF, WEBP';
+    }
+
+    // Vérifier la taille (5MB max)
+    $maxSize = 5 * 1024 * 1024; // 5MB
+    if ($file->getSize() > $maxSize) {
+        $errors[] = 'L\'image ne doit pas dépasser 5MB';
+    }
+
+    // Vérifier les dimensions si c'est une image (plus permissif)
+    try {
+        $imageInfo = getimagesize($file->getPathname());
+        if ($imageInfo) {
+            $width = $imageInfo[0];
+            $height = $imageInfo[1];
+            
+            if ($width < 50 || $height < 50) {
+                $errors[] = 'L\'image doit faire au moins 50x50 pixels';
+            }
+            
+            if ($width > 4000 || $height > 4000) {
+                $errors[] = 'L\'image ne doit pas dépasser 4000x4000 pixels';
+            }
+        }
+    } catch (\Exception $e) {
+        // Si on ne peut pas lire les dimensions, on ne considère pas ça comme une erreur
+        \Log::warning('Impossible de lire les dimensions de l\'image: ' . $e->getMessage());
+    }
+
+    return [
+        'valid' => empty($errors),
+        'errors' => $errors
+    ];
+}
 
     // Méthode pour régénérer l'URL d'image
     public function refreshImageUrl()
@@ -303,35 +304,70 @@ class Composant extends Model
 
     // Événements du modèle
     protected static function boot()
-    {
-        parent::boot();
+{
+    parent::boot();
 
-        // Supprimer l'image lors de la suppression du composant
-        static::deleting(function ($composant) {
-            $composant->deleteOldImage();
-        });
-
-        // Log lors de la création
-        static::created(function ($composant) {
-            Log::info('Composant créé:', [
-                'composant_id' => $composant->id,
-                'nom' => $composant->nom,
-                'has_image' => !empty($composant->image_path)
-            ]);
-        });
-
-        // Log lors de la mise à jour
-        static::updated(function ($composant) {
-            $changes = $composant->getChanges();
-            if (array_key_exists('image_path', $changes)) {
-                Log::info('Image composant mise à jour:', [
-                    'composant_id' => $composant->id,
-                    'old_image' => $composant->getOriginal('image_path'),
-                    'new_image' => $composant->image_path
-                ]);
+    // Validation et nettoyage avant création
+    static::creating(function ($composant) {
+        // Nettoyer duree_vie_estimee
+        if ($composant->duree_vie_estimee === 'null' || $composant->duree_vie_estimee === '') {
+            $composant->duree_vie_estimee = null;
+        }
+        
+        // Nettoyer les champs texte vides
+        foreach (['description', 'notes', 'fournisseur'] as $field) {
+            if ($composant->$field === '' || $composant->$field === 'null') {
+                $composant->$field = null;
             }
-        });
-    }
+        }
+        
+        // S'assurer que quantite est au moins 1
+        if (empty($composant->quantite) || $composant->quantite < 1) {
+            $composant->quantite = 1;
+        }
+    });
+
+    // Même nettoyage pour la mise à jour
+    static::updating(function ($composant) {
+        // Nettoyer duree_vie_estimee
+        if ($composant->duree_vie_estimee === 'null' || $composant->duree_vie_estimee === '') {
+            $composant->duree_vie_estimee = null;
+        }
+        
+        // Nettoyer les champs texte vides
+        foreach (['description', 'notes', 'fournisseur'] as $field) {
+            if ($composant->$field === '' || $composant->$field === 'null') {
+                $composant->$field = null;
+            }
+        }
+    });
+
+    // Supprimer l'image lors de la suppression du composant
+    static::deleting(function ($composant) {
+        $composant->deleteOldImage();
+    });
+
+    // Log lors de la création
+    static::created(function ($composant) {
+        Log::info('Composant créé:', [
+            'composant_id' => $composant->id,
+            'nom' => $composant->nom,
+            'has_image' => !empty($composant->image_path)
+        ]);
+    });
+
+    // Log lors de la mise à jour
+    static::updated(function ($composant) {
+        $changes = $composant->getChanges();
+        if (array_key_exists('image_path', $changes)) {
+            Log::info('Image composant mise à jour:', [
+                'composant_id' => $composant->id,
+                'old_image' => $composant->getOriginal('image_path'),
+                'new_image' => $composant->image_path
+            ]);
+        }
+    });
+}
 
     // Méthode pour obtenir toutes les données nécessaires à l'affichage
     public function getDisplayDataAttribute()

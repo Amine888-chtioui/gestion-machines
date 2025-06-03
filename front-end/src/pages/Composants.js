@@ -271,65 +271,79 @@ const Composants = () => {
     }
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setSubmitting(true);
+ const handleSubmit = async (e) => {
+  e.preventDefault();
+  setSubmitting(true);
 
-    try {
-      // Validation côté client
-      if (formData.image) {
-        const validation = apiService.validateImage(formData.image);
-        if (!validation.valid) {
-          validation.errors.forEach(error => toast.error(error));
-          return;
-        }
+  try {
+    // Validation côté client
+    if (formData.image) {
+      const validation = apiService.validateImage(formData.image);
+      if (!validation.valid) {
+        validation.errors.forEach(error => toast.error(error));
+        return;
       }
-
-      const dataToSubmit = {
-        ...formData,
-        quantite: parseInt(formData.quantite) || 1,
-        prix_unitaire: formData.prix_unitaire ? parseFloat(formData.prix_unitaire) : null,
-        duree_vie_estimee: formData.duree_vie_estimee ? parseInt(formData.duree_vie_estimee) : null
-      };
-
-      console.log('📤 Envoi des données composant:', {
-        ...dataToSubmit,
-        has_image: !!formData.image,
-        image_size: formData.image?.size
-      });
-
-      if (editingComposant) {
-        await apiService.updateComposant(editingComposant.id, dataToSubmit);
-        toast.success('Composant mis à jour avec succès');
-      } else {
-        await apiService.createComposant(dataToSubmit);
-        toast.success('Composant créé avec succès');
-      }
-      
-      setShowModal(false);
-      resetForm();
-      setEditingComposant(null);
-      
-      // Rechargement avec délai
-      setTimeout(() => {
-        loadComposants();
-      }, 500);
-      
-    } catch (error) {
-      console.error('❌ Erreur lors de la sauvegarde:', error);
-      
-      if (error.response?.status === 422 && error.response?.data?.errors) {
-        const errors = error.response.data.errors;
-        Object.values(errors).flat().forEach(err => {
-          toast.error(err);
-        });
-      } else {
-        toast.error(error.response?.data?.message || 'Erreur lors de la sauvegarde du composant');
-      }
-    } finally {
-      setSubmitting(false);
     }
-  };
+
+    // CORRECTION: Nettoyage des données avant envoi
+    const dataToSubmit = {
+      ...formData,
+      quantite: parseInt(formData.quantite) || 1,
+      // Conversion correcte pour prix_unitaire
+      prix_unitaire: formData.prix_unitaire && formData.prix_unitaire !== '' && formData.prix_unitaire !== 'null' 
+        ? parseFloat(formData.prix_unitaire) 
+        : null,
+      // Conversion correcte pour duree_vie_estimee  
+      duree_vie_estimee: formData.duree_vie_estimee && formData.duree_vie_estimee !== '' && formData.duree_vie_estimee !== 'null'
+        ? parseInt(formData.duree_vie_estimee) 
+        : null,
+      // Nettoyer les autres champs optionnels
+      fournisseur: formData.fournisseur && formData.fournisseur !== '' ? formData.fournisseur : null,
+      date_installation: formData.date_installation && formData.date_installation !== '' ? formData.date_installation : null,
+      derniere_inspection: formData.derniere_inspection && formData.derniere_inspection !== '' ? formData.derniere_inspection : null,
+      prochaine_inspection: formData.prochaine_inspection && formData.prochaine_inspection !== '' ? formData.prochaine_inspection : null,
+      notes: formData.notes && formData.notes !== '' ? formData.notes : null,
+      description: formData.description && formData.description !== '' ? formData.description : null
+    };
+
+    console.log('📤 Envoi des données composant nettoyées:', {
+      ...dataToSubmit,
+      has_image: !!formData.image,
+      image_size: formData.image?.size
+    });
+
+    if (editingComposant) {
+      await apiService.updateComposant(editingComposant.id, dataToSubmit);
+      toast.success('Composant mis à jour avec succès');
+    } else {
+      await apiService.createComposant(dataToSubmit);
+      toast.success('Composant créé avec succès');
+    }
+    
+    setShowModal(false);
+    resetForm();
+    setEditingComposant(null);
+    
+    // Rechargement avec délai
+    setTimeout(() => {
+      loadComposants();
+    }, 500);
+    
+  } catch (error) {
+    console.error('❌ Erreur lors de la sauvegarde:', error);
+    
+    if (error.response?.status === 422 && error.response?.data?.errors) {
+      const errors = error.response.data.errors;
+      Object.values(errors).flat().forEach(err => {
+        toast.error(err);
+      });
+    } else {
+      toast.error(error.response?.data?.message || 'Erreur lors de la sauvegarde du composant');
+    }
+  } finally {
+    setSubmitting(false);
+  }
+}; 
 
   const handleStatutChange = async (e) => {
     e.preventDefault();
