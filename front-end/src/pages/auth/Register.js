@@ -1,15 +1,12 @@
+// src/pages/auth/Register.js - Version simplifiée
 import React, { useState } from 'react';
-import { Form, Button, Alert, InputGroup, ProgressBar } from 'react-bootstrap';
+import { Form, Button, InputGroup, ProgressBar } from 'react-bootstrap';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 
 const Register = () => {
   const [formData, setFormData] = useState({
-    name: '',
-    email: '',
-    password: '',
-    password_confirmation: '',
-    role: 'user'
+    name: '', email: '', password: '', password_confirmation: '', role: 'user'
   });
   const [errors, setErrors] = useState({});
   const [showPassword, setShowPassword] = useState(false);
@@ -19,7 +16,6 @@ const Register = () => {
   const { register } = useAuth();
   const navigate = useNavigate();
 
-  // Calculer la force du mot de passe
   const calculatePasswordStrength = (password) => {
     let strength = 0;
     if (password.length >= 8) strength += 25;
@@ -46,22 +42,14 @@ const Register = () => {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
+    setFormData(prev => ({ ...prev, [name]: value }));
 
-    // Calculer la force du mot de passe
     if (name === 'password') {
       setPasswordStrength(calculatePasswordStrength(value));
     }
 
-    // Effacer l'erreur du champ modifié
     if (errors[name]) {
-      setErrors(prev => ({
-        ...prev,
-        [name]: ''
-      }));
+      setErrors(prev => ({ ...prev, [name]: '' }));
     }
   };
 
@@ -98,7 +86,6 @@ const Register = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
     if (!validateForm()) return;
 
     setLoading(true);
@@ -118,7 +105,18 @@ const Register = () => {
     <div className="register-form">
       {/* En-tête */}
       <div className="text-center mb-4">
-        <div className="auth-icon mb-3">
+        <div 
+          className="d-inline-flex align-items-center justify-content-center mb-3"
+          style={{
+            width: '60px',
+            height: '60px',
+            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+            borderRadius: '50%',
+            color: 'white',
+            fontSize: '1.5rem',
+            boxShadow: '0 4px 15px rgba(102, 126, 234, 0.3)'
+          }}
+        >
           <i className="fas fa-user-plus"></i>
         </div>
         <h2 className="h4 text-dark fw-bold mb-1">Créer un compte</h2>
@@ -140,7 +138,13 @@ const Register = () => {
             onChange={handleChange}
             placeholder="Votre nom complet"
             isInvalid={!!errors.name}
-            className="form-control-lg"
+            style={{
+              padding: '0.75rem 1rem',
+              fontSize: '1rem',
+              borderRadius: '8px',
+              border: '2px solid #e9ecef',
+              transition: 'all 0.3s ease'
+            }}
             autoComplete="name"
           />
           <Form.Control.Feedback type="invalid">
@@ -161,7 +165,13 @@ const Register = () => {
             onChange={handleChange}
             placeholder="votre.email@exemple.com"
             isInvalid={!!errors.email}
-            className="form-control-lg"
+            style={{
+              padding: '0.75rem 1rem',
+              fontSize: '1rem',
+              borderRadius: '8px',
+              border: '2px solid #e9ecef',
+              transition: 'all 0.3s ease'
+            }}
             autoComplete="email"
           />
           <Form.Control.Feedback type="invalid">
@@ -179,7 +189,13 @@ const Register = () => {
             name="role"
             value={formData.role}
             onChange={handleChange}
-            className="form-control-lg"
+            style={{
+              padding: '0.75rem 1rem',
+              fontSize: '1rem',
+              borderRadius: '8px',
+              border: '2px solid #e9ecef',
+              transition: 'all 0.3s ease'
+            }}
           >
             <option value="user">Utilisateur</option>
             <option value="admin">Administrateur</option>
@@ -200,13 +216,24 @@ const Register = () => {
               onChange={handleChange}
               placeholder="Créez un mot de passe fort"
               isInvalid={!!errors.password}
-              className="form-control-lg"
+              style={{
+                padding: '0.75rem 1rem',
+                fontSize: '1rem',
+                borderRadius: '8px 0 0 8px',
+                border: '2px solid #e9ecef',
+                borderRight: 'none',
+                transition: 'all 0.3s ease'
+              }}
               autoComplete="new-password"
             />
             <Button
               variant="outline-secondary"
               onClick={() => setShowPassword(!showPassword)}
-              className="password-toggle-btn"
+              style={{
+                border: '2px solid #e9ecef',
+                borderLeft: 'none',
+                borderRadius: '0 8px 8px 0'
+              }}
             >
               <i className={`fas ${showPassword ? 'fa-eye-slash' : 'fa-eye'}`}></i>
             </Button>
@@ -215,7 +242,7 @@ const Register = () => {
             {errors.password}
           </Form.Control.Feedback>
           
-          {/* Indicateur de force du mot de passe */}
+          {/* Indicateur de force */}
           {formData.password && (
             <div className="mt-2">
               <div className="d-flex justify-content-between align-items-center mb-1">
@@ -233,7 +260,7 @@ const Register = () => {
           )}
         </Form.Group>
 
-        {/* Confirmation du mot de passe */}
+        {/* Confirmation mot de passe */}
         <Form.Group className="mb-4">
           <Form.Label className="fw-semibold text-dark">
             <i className="fas fa-lock me-2 text-primary"></i>
@@ -247,13 +274,24 @@ const Register = () => {
               onChange={handleChange}
               placeholder="Confirmez votre mot de passe"
               isInvalid={!!errors.password_confirmation}
-              className="form-control-lg"
+              style={{
+                padding: '0.75rem 1rem',
+                fontSize: '1rem',
+                borderRadius: '8px 0 0 8px',
+                border: '2px solid #e9ecef',
+                borderRight: 'none',
+                transition: 'all 0.3s ease'
+              }}
               autoComplete="new-password"
             />
             <Button
               variant="outline-secondary"
               onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-              className="password-toggle-btn"
+              style={{
+                border: '2px solid #e9ecef',
+                borderLeft: 'none',
+                borderRadius: '0 8px 8px 0'
+              }}
             >
               <i className={`fas ${showConfirmPassword ? 'fa-eye-slash' : 'fa-eye'}`}></i>
             </Button>
@@ -263,7 +301,7 @@ const Register = () => {
           </Form.Control.Feedback>
         </Form.Group>
 
-        {/* Conditions d'utilisation */}
+        {/* Conditions */}
         <Form.Group className="mb-4">
           <Form.Check
             type="checkbox"
@@ -291,6 +329,15 @@ const Register = () => {
           size="lg"
           className="w-100 fw-semibold"
           disabled={loading}
+          style={{
+            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+            border: 'none',
+            borderRadius: '8px',
+            padding: '0.75rem 1.5rem',
+            fontSize: '1rem',
+            boxShadow: '0 4px 15px rgba(102, 126, 234, 0.3)',
+            transition: 'all 0.3s ease'
+          }}
         >
           {loading ? (
             <>
@@ -320,95 +367,45 @@ const Register = () => {
       </div>
 
       {/* Avantages */}
-      <div className="benefits-section mt-4 pt-3">
+      <div className="mt-4 pt-3">
         <h6 className="text-center text-muted mb-3">Pourquoi nous rejoindre ?</h6>
         <div className="row text-center">
           <div className="col-4">
-            <div className="benefit-item">
-              <i className="fas fa-cogs text-primary mb-1"></i>
+            <div style={{ padding: '0.5rem' }}>
+              <i className="fas fa-cogs text-primary mb-1" style={{ fontSize: '1.2rem', display: 'block' }}></i>
               <p className="small text-muted mb-0">Gestion complète</p>
             </div>
           </div>
           <div className="col-4">
-            <div className="benefit-item">
-              <i className="fas fa-chart-line text-success mb-1"></i>
+            <div style={{ padding: '0.5rem' }}>
+              <i className="fas fa-chart-line text-success mb-1" style={{ fontSize: '1.2rem', display: 'block' }}></i>
               <p className="small text-muted mb-0">Suivi en temps réel</p>
             </div>
           </div>
           <div className="col-4">
-            <div className="benefit-item">
-              <i className="fas fa-mobile-alt text-info mb-1"></i>
+            <div style={{ padding: '0.5rem' }}>
+              <i className="fas fa-mobile-alt text-info mb-1" style={{ fontSize: '1.2rem', display: 'block' }}></i>
               <p className="small text-muted mb-0">Interface moderne</p>
             </div>
           </div>
         </div>
       </div>
 
+      {/* Styles intégrés */}
       <style jsx>{`
-        .auth-icon {
-          width: 60px;
-          height: 60px;
-          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-          border-radius: 50%;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          margin: 0 auto;
-          font-size: 1.5rem;
-          color: white;
-          box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
-        }
-
-        .form-control-lg {
-          padding: 0.75rem 1rem;
-          font-size: 1rem;
-          border-radius: 8px;
-          border: 2px solid #e9ecef;
-          transition: all 0.3s ease;
-        }
-
-        .form-control-lg:focus {
-          border-color: #667eea;
-          box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25);
+        .form-control:focus {
+          border-color: #667eea !important;
+          box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25) !important;
           transform: translateY(-1px);
         }
 
-        .password-toggle-btn {
-          border-left: none;
-          border: 2px solid #e9ecef;
-          border-left: none;
-        }
-
-        .password-toggle-btn:hover {
-          background-color: #f8f9fa;
-        }
-
-        .btn-primary {
-          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-          border: none;
-          border-radius: 8px;
-          padding: 0.75rem 1.5rem;
-          font-size: 1rem;
-          box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
-          transition: all 0.3s ease;
-        }
-
         .btn-primary:hover {
-          transform: translateY(-2px);
-          box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+          transform: translateY(-2px) !important;
+          box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4) !important;
         }
 
         .btn-primary:active {
-          transform: translateY(0);
-        }
-
-        .benefit-item {
-          padding: 0.5rem;
-        }
-
-        .benefit-item i {
-          font-size: 1.2rem;
-          display: block;
+          transform: translateY(0) !important;
         }
 
         .progress {
@@ -417,14 +414,14 @@ const Register = () => {
 
         @media (max-width: 576px) {
           .auth-icon {
-            width: 50px;
-            height: 50px;
-            font-size: 1.25rem;
+            width: 50px !important;
+            height: 50px !important;
+            font-size: 1.25rem !important;
           }
           
-          .form-control-lg {
-            padding: 0.625rem 0.875rem;
-            font-size: 0.95rem;
+          .form-control {
+            padding: 0.625rem 0.875rem !important;
+            font-size: 0.95rem !important;
           }
         }
       `}</style>

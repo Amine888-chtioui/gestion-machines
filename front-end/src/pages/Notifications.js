@@ -1,6 +1,6 @@
-// src/pages/Notifications.js - Version mise à jour avec fonctionnalité complète
+// src/pages/Notifications.js - Version simplifiée
 import React, { useState, useEffect } from 'react';
-import { Card, Badge, Button, Row, Col, Spinner, Alert, Modal, Form, Dropdown } from 'react-bootstrap';
+import { Card, Badge, Button, Row, Col, Spinner, Form } from 'react-bootstrap';
 import { useAuth } from '../contexts/AuthContext';
 import apiService from '../services/apiService';
 import { toast } from 'react-toastify';
@@ -9,22 +9,8 @@ const Notifications = () => {
   const { user } = useAuth();
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [refreshing, setRefreshing] = useState(false);
-  const [markingAllAsRead, setMarkingAllAsRead] = useState(false);
-  const [deletingRead, setDeletingRead] = useState(false);
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [selectedNotification, setSelectedNotification] = useState(null);
-  const [filters, setFilters] = useState({
-    type: '',
-    lu: '', // '' = toutes, 'true' = lues, 'false' = non lues
-  });
-  const [stats, setStats] = useState({
-    total: 0,
-    non_lues: 0,
-    lues: 0,
-    recentes: 0
-  });
+  const [filters, setFilters] = useState({ lu: '', type: '' });
+  const [stats, setStats] = useState({ total: 0, non_lues: 0, lues: 0 });
 
   useEffect(() => {
     loadNotifications();
@@ -34,28 +20,10 @@ const Notifications = () => {
   const loadNotifications = async () => {
     try {
       setLoading(true);
-      setError(null);
-      
-      const params = {
-        ...Object.fromEntries(
-          Object.entries(filters).filter(([key, value]) => value !== '')
-        )
-      };
-
-      console.log('🔄 Chargement des notifications avec params:', params);
-      const response = await apiService.getNotifications(params);
-      console.log('📥 Réponse API notifications:', response.data);
-      
-      if (response.data && response.data.data) {
-        const notificationsData = response.data.data.data || response.data.data;
-        setNotifications(notificationsData);
-      } else {
-        setNotifications([]);
-      }
+      const response = await apiService.getNotifications(filters);
+      setNotifications(response.data.data.data || response.data.data);
     } catch (error) {
-      console.error('❌ Erreur lors du chargement des notifications:', error);
-      setError('Erreur lors du chargement des notifications');
-      setNotifications([]);
+      console.error('Erreur:', error);
     } finally {
       setLoading(false);
     }
@@ -64,144 +32,80 @@ const Notifications = () => {
   const loadStats = async () => {
     try {
       const response = await apiService.getNotificationsCount();
-      if (response.data && response.data.data) {
-        setStats(response.data.data);
-      }
+      setStats(response.data.data);
     } catch (error) {
-      console.error('Erreur lors du chargement des statistiques:', error);
+      console.error('Erreur stats:', error);
     }
   };
 
-  const handleRefresh = async () => {
-    setRefreshing(true);
-    await Promise.all([loadNotifications(), loadStats()]);
-    setRefreshing(false);
-    toast.success('Notifications actualisées');
-  };
-
-  // NOUVELLE FONCTION : Marquer toutes les notifications comme lues
   const handleMarkAllAsRead = async () => {
     if (stats.non_lues === 0) {
       toast.info('Toutes les notifications sont déjà lues');
       return;
     }
 
-    if (!window.confirm(`Êtes-vous sûr de vouloir marquer toutes les ${stats.non_lues} notifications non lues comme lues ?`)) {
-      return;
-    }
-
-    setMarkingAllAsRead(true);
     try {
-      console.log('📝 Marquage de toutes les notifications comme lues...');
-      
-      const response = await apiService.marquerToutesNotificationsLues();
-      console.log('✅ Réponse marquage:', response.data);
-      
+      await apiService.marquerToutesNotificationsLues();
       toast.success(`${stats.non_lues} notification(s) marquée(s) comme lues`);
-      
-      // Recharger les données
-      await Promise.all([loadNotifications(), loadStats()]);
-      
+      loadNotifications();
+      loadStats();
     } catch (error) {
-      console.error('❌ Erreur lors du marquage:', error);
-      toast.error('Erreur lors du marquage des notifications');
-    } finally {
-      setMarkingAllAsRead(false);
+      toast.error('Erreur lors du marquage');
     }
   };
 
-  // Marquer une notification comme lue/non lue
   const handleToggleRead = async (notification) => {
     try {
       if (notification.lu) {
-        await apiService.marquerNotificationNonLue(notification.id);
-        toast.success('Notification marquée comme non lue');
+        // Marquer comme non lue (besoin d'une route API)
+        toast.info('Fonctionnalité à implémenter');
       } else {
         await apiService.marquerNotificationLue(notification.id);
         toast.success('Notification marquée comme lue');
       }
       
-      // Mettre à jour l'état local immédiatement
-      setNotifications(prevNotifications =>
-        prevNotifications.map(notif =>
+      setNotifications(prev =>
+        prev.map(notif =>
           notif.id === notification.id
             ? { ...notif, lu: !notif.lu, lu_le: !notif.lu ? new Date().toISOString() : null }
             : notif
         )
       );
-      
-      // Recharger les stats
       loadStats();
-      
     } catch (error) {
-      console.error('Erreur lors de la mise à jour:', error);
-      toast.error('Erreur lors de la mise à jour de la notification');
+      toast.error('Erreur lors de la mise à jour');
     }
   };
 
-  // Supprimer une notification
   const handleDelete = async (notification) => {
-    if (!window.confirm('Êtes-vous sûr de vouloir supprimer cette notification ?')) {
-      return;
-    }
+    if (!window.confirm('Supprimer cette notification ?')) return;
 
     try {
       await apiService.deleteNotification(notification.id);
       toast.success('Notification supprimée');
-      
-      // Mettre à jour l'état local
-      setNotifications(prevNotifications =>
-        prevNotifications.filter(notif => notif.id !== notification.id)
-      );
-      
-      // Recharger les stats
+      setNotifications(prev => prev.filter(notif => notif.id !== notification.id));
       loadStats();
-      
     } catch (error) {
-      console.error('Erreur lors de la suppression:', error);
-      toast.error('Erreur lors de la suppression de la notification');
+      toast.error('Erreur lors de la suppression');
     }
   };
 
-  // Supprimer toutes les notifications lues
   const handleDeleteRead = async () => {
     if (stats.lues === 0) {
       toast.info('Aucune notification lue à supprimer');
       return;
     }
 
-    if (!window.confirm(`Êtes-vous sûr de vouloir supprimer toutes les ${stats.lues} notifications lues ?`)) {
-      return;
-    }
+    if (!window.confirm(`Supprimer toutes les ${stats.lues} notifications lues ?`)) return;
 
-    setDeletingRead(true);
     try {
-      const response = await apiService.supprimerNotificationsLues();
-      toast.success(response.data.message || 'Notifications lues supprimées');
-      
-      // Recharger les données
-      await Promise.all([loadNotifications(), loadStats()]);
-      
+      await apiService.supprimerNotificationsLues();
+      toast.success('Notifications lues supprimées');
+      loadNotifications();
+      loadStats();
     } catch (error) {
-      console.error('Erreur lors de la suppression:', error);
-      toast.error('Erreur lors de la suppression des notifications lues');
-    } finally {
-      setDeletingRead(false);
+      toast.error('Erreur lors de la suppression');
     }
-  };
-
-  const handleFilterChange = (key, value) => {
-    setFilters(prev => ({
-      ...prev,
-      [key]: value
-    }));
-  };
-
-  const clearFilters = () => {
-    setFilters({
-      type: '',
-      lu: ''
-    });
   };
 
   const getNotificationIcon = (type) => {
@@ -231,31 +135,24 @@ const Notifications = () => {
     const diffTime = Math.abs(now - date);
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
     
-    if (diffDays === 1) {
-      return 'Aujourd\'hui à ' + date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
-    } else if (diffDays === 2) {
-      return 'Hier à ' + date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
-    } else if (diffDays <= 7) {
-      return `Il y a ${diffDays - 1} jour(s)`;
-    } else {
-      return date.toLocaleDateString('fr-FR');
-    }
+    if (diffDays === 1) return 'Aujourd\'hui';
+    if (diffDays === 2) return 'Hier';
+    if (diffDays <= 7) return `Il y a ${diffDays - 1} jour(s)`;
+    return date.toLocaleDateString('fr-FR');
   };
 
-  if (loading && notifications.length === 0) {
+  if (loading) {
     return (
-      <div className="d-flex justify-content-center align-items-center" style={{ minHeight: '400px' }}>
-        <div className="text-center">
-          <Spinner animation="border" variant="primary" size="lg" />
-          <p className="mt-3 text-muted">Chargement des notifications...</p>
-        </div>
+      <div className="text-center py-5">
+        <Spinner animation="border" size="lg" />
+        <p className="mt-3">Chargement des notifications...</p>
       </div>
     );
   }
 
   return (
-    <div className="notifications-page">
-      {/* En-tête avec statistiques */}
+    <div>
+      {/* En-tête */}
       <Row className="mb-4">
         <Col>
           <div className="d-flex justify-content-between align-items-center">
@@ -266,99 +163,51 @@ const Notifications = () => {
               </h2>
               <p className="text-muted mb-0">
                 {stats.total} notification(s) - 
-                <span className="text-warning fw-bold"> {stats.non_lues} non lues</span> - 
-                <span className="text-success"> {stats.lues} lues</span>
+                <span className="text-warning fw-bold"> {stats.non_lues} non lues</span>
               </p>
             </div>
             <div className="d-flex gap-2">
-              {/* Bouton de rafraîchissement */}
               <Button
-                variant="outline-secondary"
+                variant="outline-success"
                 size="sm"
-                onClick={handleRefresh}
-                disabled={refreshing}
-                title="Actualiser les notifications"
+                onClick={handleMarkAllAsRead}
+                disabled={stats.non_lues === 0}
               >
-                {refreshing ? (
-                  <Spinner as="span" animation="border" size="sm" />
-                ) : (
-                  <i className="fas fa-sync-alt"></i>
-                )}
+                <i className="fas fa-check-double me-1"></i>
+                Marquer toutes lues
               </Button>
-
-              {/* Actions en lot */}
-              <Dropdown>
-                <Dropdown.Toggle variant="outline-primary" size="sm">
-                  <i className="fas fa-cog me-1"></i>
-                  Actions
-                </Dropdown.Toggle>
-                <Dropdown.Menu>
-                  <Dropdown.Item
-                    onClick={handleMarkAllAsRead}
-                    disabled={markingAllAsRead || stats.non_lues === 0}
-                  >
-                    {markingAllAsRead ? (
-                      <>
-                        <Spinner as="span" animation="border" size="sm" className="me-2" />
-                        Marquage en cours...
-                      </>
-                    ) : (
-                      <>
-                        <i className="fas fa-check-double me-2 text-success"></i>
-                        Marquer toutes comme lues ({stats.non_lues})
-                      </>
-                    )}
-                  </Dropdown.Item>
-                  <Dropdown.Divider />
-                  <Dropdown.Item
-                    onClick={handleDeleteRead}
-                    disabled={deletingRead || stats.lues === 0}
-                    className="text-danger"
-                  >
-                    {deletingRead ? (
-                      <>
-                        <Spinner as="span" animation="border" size="sm" className="me-2" />
-                        Suppression...
-                      </>
-                    ) : (
-                      <>
-                        <i className="fas fa-trash me-2"></i>
-                        Supprimer les lues ({stats.lues})
-                      </>
-                    )}
-                  </Dropdown.Item>
-                </Dropdown.Menu>
-              </Dropdown>
+              <Button
+                variant="outline-danger"
+                size="sm"
+                onClick={handleDeleteRead}
+                disabled={stats.lues === 0}
+              >
+                <i className="fas fa-trash me-1"></i>
+                Supprimer lues
+              </Button>
             </div>
           </div>
         </Col>
       </Row>
 
-      {error && (
-        <Alert variant="danger" className="mb-4">
-          <i className="fas fa-exclamation-triangle me-2"></i>
-          {error}
-        </Alert>
-      )}
-
       {/* Filtres */}
       <Card className="mb-4">
         <Card.Body>
-          <Row className="g-3">
-            <Col md={3}>
+          <Row>
+            <Col md={4}>
               <Form.Select
                 value={filters.lu}
-                onChange={(e) => handleFilterChange('lu', e.target.value)}
+                onChange={(e) => setFilters(prev => ({ ...prev, lu: e.target.value }))}
               >
                 <option value="">Toutes les notifications</option>
                 <option value="false">Non lues seulement</option>
                 <option value="true">Lues seulement</option>
               </Form.Select>
             </Col>
-            <Col md={3}>
+            <Col md={4}>
               <Form.Select
                 value={filters.type}
-                onChange={(e) => handleFilterChange('type', e.target.value)}
+                onChange={(e) => setFilters(prev => ({ ...prev, type: e.target.value }))}
               >
                 <option value="">Tous les types</option>
                 <option value="info">Information</option>
@@ -370,11 +219,9 @@ const Notifications = () => {
             <Col md={2}>
               <Button
                 variant="outline-secondary"
-                onClick={clearFilters}
-                title="Effacer les filtres"
+                onClick={() => setFilters({ lu: '', type: '' })}
                 className="w-100"
               >
-                <i className="fas fa-times me-1"></i>
                 Effacer
               </Button>
             </Col>
@@ -382,44 +229,28 @@ const Notifications = () => {
         </Card.Body>
       </Card>
 
-      {/* Liste des notifications */}
+      {/* Liste */}
       {notifications.length === 0 ? (
         <Card>
-          <Card.Body>
-            <div className="text-center py-5">
-              <i className="fas fa-bell-slash fa-3x text-muted mb-3"></i>
-              <h4>Aucune notification</h4>
-              <p className="text-muted mb-4">
-                {Object.values(filters).some(filter => filter !== '') 
-                  ? 'Aucune notification ne correspond à vos critères.'
-                  : 'Vous n\'avez pas encore de notifications.'
-                }
-              </p>
-              {Object.values(filters).some(filter => filter !== '') && (
-                <Button variant="outline-primary" onClick={clearFilters}>
-                  <i className="fas fa-times me-2"></i>
-                  Effacer les filtres
-                </Button>
-              )}
-            </div>
+          <Card.Body className="text-center py-5">
+            <i className="fas fa-bell-slash fa-3x text-muted mb-3"></i>
+            <h4>Aucune notification</h4>
+            <p className="text-muted">Vous n'avez pas de notifications pour le moment.</p>
           </Card.Body>
         </Card>
       ) : (
-        <div className="notifications-list">
+        <div>
           {notifications.map((notification) => (
             <Card 
               key={notification.id} 
-              className={`mb-3 notification-card ${!notification.lu ? 'notification-unread' : ''}`}
+              className={`mb-3 ${!notification.lu ? 'border-warning' : ''}`}
             >
               <Card.Body>
                 <div className="d-flex justify-content-between align-items-start">
                   <div className="d-flex align-items-start flex-grow-1">
-                    {/* Icône */}
-                    <div className="notification-icon me-3">
+                    <div className="me-3">
                       <i className={getNotificationIcon(notification.type)}></i>
                     </div>
-
-                    {/* Contenu */}
                     <div className="flex-grow-1">
                       <div className="d-flex justify-content-between align-items-start mb-2">
                         <h6 className={`mb-1 ${!notification.lu ? 'fw-bold' : ''}`}>
@@ -432,11 +263,9 @@ const Notifications = () => {
                           {notification.type}
                         </Badge>
                       </div>
-
                       <p className={`mb-2 ${!notification.lu ? 'text-dark' : 'text-muted'}`}>
                         {notification.message}
                       </p>
-
                       <div className="d-flex justify-content-between align-items-center">
                         <small className="text-muted">
                           <i className="fas fa-clock me-1"></i>
@@ -447,8 +276,6 @@ const Notifications = () => {
                             </span>
                           )}
                         </small>
-
-                        {/* Actions */}
                         <div className="d-flex gap-1">
                           <Button
                             variant={notification.lu ? "outline-warning" : "outline-success"}
@@ -458,7 +285,6 @@ const Notifications = () => {
                           >
                             <i className={`fas ${notification.lu ? 'fa-eye-slash' : 'fa-check'}`}></i>
                           </Button>
-                          
                           <Button
                             variant="outline-danger"
                             size="sm"
@@ -469,32 +295,6 @@ const Notifications = () => {
                           </Button>
                         </div>
                       </div>
-
-                      {/* Données supplémentaires si disponibles */}
-                      {notification.data && (
-                        <div className="mt-2 p-2 bg-light rounded">
-                          <small className="text-muted">
-                            {notification.data.demande_id && (
-                              <span className="me-3">
-                                <i className="fas fa-file-alt me-1"></i>
-                                Demande #{notification.data.numero_demande || notification.data.demande_id}
-                              </span>
-                            )}
-                            {notification.data.machine_id && (
-                              <span className="me-3">
-                                <i className="fas fa-cog me-1"></i>
-                                Machine ID: {notification.data.machine_id}
-                              </span>
-                            )}
-                            {notification.data.composant_id && (
-                              <span>
-                                <i className="fas fa-puzzle-piece me-1"></i>
-                                Composant ID: {notification.data.composant_id}
-                              </span>
-                            )}
-                          </small>
-                        </div>
-                      )}
                     </div>
                   </div>
                 </div>
@@ -503,176 +303,6 @@ const Notifications = () => {
           ))}
         </div>
       )}
-
-      {/* Styles CSS personnalisés */}
-      <style jsx>{`
-        .notification-card {
-          transition: all 0.3s ease;
-          border-radius: 12px;
-          border: 1px solid #e9ecef;
-        }
-
-        .notification-card:hover {
-          transform: translateY(-2px);
-          box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-        }
-
-        .notification-unread {
-          border-left: 4px solid #ffc107;
-          background: linear-gradient(135deg, #fff8e1 0%, #ffffff 100%);
-        }
-
-        .notification-icon {
-          font-size: 1.2rem;
-          width: 30px;
-          display: flex;
-          justify-content: center;
-          align-items: flex-start;
-          padding-top: 2px;
-        }
-
-        .notifications-list {
-          animation: fadeInUp 0.5s ease-out;
-        }
-
-        @keyframes fadeInUp {
-          from {
-            opacity: 0;
-            transform: translateY(20px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
-
-        .badge {
-          font-size: 0.75rem;
-          padding: 0.35em 0.65em;
-        }
-
-        .btn-outline-success:hover {
-          background-color: #28a745;
-          border-color: #28a745;
-        }
-
-        .btn-outline-warning:hover {
-          background-color: #ffc107;
-          border-color: #ffc107;
-          color: #212529;
-        }
-
-        .btn-outline-danger:hover {
-          background-color: #dc3545;
-          border-color: #dc3545;
-        }
-
-        /* Animation pour les actions en cours */
-        .spinner-border-sm {
-          width: 0.875rem;
-          height: 0.875rem;
-        }
-
-        /* Responsive */
-        @media (max-width: 768px) {
-          .notification-card .card-body {
-            padding: 1rem;
-          }
-          
-          .notification-icon {
-            font-size: 1rem;
-            width: 25px;
-          }
-          
-          .d-flex.gap-1 {
-            flex-direction: column;
-            gap: 0.25rem !important;
-          }
-          
-          .btn-sm {
-            padding: 0.25rem 0.5rem;
-            font-size: 0.8rem;
-          }
-        }
-
-        @media (max-width: 576px) {
-          .notifications-page h2 {
-            font-size: 1.5rem;
-          }
-          
-          .d-flex.justify-content-between.align-items-center {
-            flex-direction: column;
-            align-items: stretch;
-            gap: 1rem;
-          }
-          
-          .d-flex.gap-2 {
-            justify-content: center;
-          }
-        }
-
-        /* États des notifications */
-        .notification-unread h6 {
-          color: #495057;
-        }
-
-        .notification-card .card-body:hover .btn {
-          opacity: 1;
-        }
-
-        .btn {
-          transition: all 0.2s ease;
-        }
-
-        /* Amélioration de l'accessibilité */
-        .notification-card:focus-within {
-          outline: 2px solid #007bff;
-          outline-offset: 2px;
-        }
-
-        /* Animation pour le rafraîchissement */
-        .fa-sync-alt {
-          transition: transform 0.3s ease;
-        }
-
-        .fa-sync-alt:hover {
-          transform: rotate(180deg);
-        }
-
-        /* Style pour les dropdowns */
-        .dropdown-menu {
-          border-radius: 8px;
-          border: none;
-          box-shadow: 0 8px 25px rgba(0,0,0,0.15);
-        }
-
-        .dropdown-item {
-          padding: 0.5rem 1rem;
-          transition: all 0.2s ease;
-        }
-
-        .dropdown-item:hover {
-          background-color: #f8f9fa;
-        }
-
-        .dropdown-item.text-danger:hover {
-          background-color: #f8d7da;
-          color: #721c24 !important;
-        }
-
-        /* Indicateurs visuels pour les actions */
-        .btn[disabled] {
-          opacity: 0.6;
-          cursor: not-allowed;
-        }
-
-        /* Animation des cartes */
-        .notification-card:nth-child(1) { animation-delay: 0.1s; }
-        .notification-card:nth-child(2) { animation-delay: 0.2s; }
-        .notification-card:nth-child(3) { animation-delay: 0.3s; }
-        .notification-card:nth-child(4) { animation-delay: 0.4s; }
-        .notification-card:nth-child(5) { animation-delay: 0.5s; }
-      `}</style>
     </div>
   );
 };

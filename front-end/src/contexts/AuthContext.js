@@ -1,4 +1,4 @@
-// src/contexts/AuthContext.js
+// src/contexts/AuthContext.js - Version simplifiée
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import apiService from '../services/apiService';
 import { toast } from 'react-toastify';
@@ -18,7 +18,6 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 
-  // Vérifier l'authentification au chargement
   useEffect(() => {
     checkAuth();
   }, []);
@@ -28,12 +27,12 @@ export const AuthProvider = ({ children }) => {
       const token = localStorage.getItem('token');
       if (token) {
         apiService.setAuthToken(token);
-        const response = await apiService.get('/auth/me');
+        const response = await apiService.getProfile();
         setUser(response.data.user);
         setIsAuthenticated(true);
       }
     } catch (error) {
-      console.error('Erreur lors de la vérification de l\'authentification:', error);
+      console.error('Erreur auth:', error);
       localStorage.removeItem('token');
       apiService.setAuthToken(null);
     } finally {
@@ -44,7 +43,7 @@ export const AuthProvider = ({ children }) => {
   const login = async (credentials) => {
     try {
       setLoading(true);
-      const response = await apiService.post('/auth/login', credentials);
+      const response = await apiService.login(credentials);
       const { user, token } = response.data;
       
       localStorage.setItem('token', token);
@@ -55,7 +54,7 @@ export const AuthProvider = ({ children }) => {
       toast.success('Connexion réussie !');
       return { success: true };
     } catch (error) {
-      const message = error.response?.data?.message || 'Erreur lors de la connexion';
+      const message = error.response?.data?.message || 'Erreur de connexion';
       toast.error(message);
       return { success: false, error: message };
     } finally {
@@ -66,7 +65,7 @@ export const AuthProvider = ({ children }) => {
   const register = async (userData) => {
     try {
       setLoading(true);
-      const response = await apiService.post('/auth/register', userData);
+      const response = await apiService.register(userData);
       const { user, token } = response.data;
       
       localStorage.setItem('token', token);
@@ -77,7 +76,7 @@ export const AuthProvider = ({ children }) => {
       toast.success('Inscription réussie !');
       return { success: true };
     } catch (error) {
-      const message = error.response?.data?.message || 'Erreur lors de l\'inscription';
+      const message = error.response?.data?.message || 'Erreur d\'inscription';
       toast.error(message);
       return { success: false, error: message };
     } finally {
@@ -87,9 +86,9 @@ export const AuthProvider = ({ children }) => {
 
   const logout = async () => {
     try {
-      await apiService.post('/auth/logout');
+      await apiService.logout();
     } catch (error) {
-      console.error('Erreur lors de la déconnexion:', error);
+      console.error('Erreur logout:', error);
     } finally {
       localStorage.removeItem('token');
       apiService.setAuthToken(null);
@@ -101,27 +100,14 @@ export const AuthProvider = ({ children }) => {
 
   const updateProfile = async (profileData) => {
     try {
-      const response = await apiService.put('/auth/profile', profileData);
+      const response = await apiService.updateProfile(profileData);
       setUser(response.data.user);
-      toast.success('Profil mis à jour avec succès !');
+      toast.success('Profil mis à jour');
       return { success: true };
     } catch (error) {
-      const message = error.response?.data?.message || 'Erreur lors de la mise à jour du profil';
+      const message = error.response?.data?.message || 'Erreur de mise à jour';
       toast.error(message);
       return { success: false, error: message };
-    }
-  };
-
-  const refreshToken = async () => {
-    try {
-      const response = await apiService.post('/auth/refresh');
-      const { token } = response.data;
-      localStorage.setItem('token', token);
-      apiService.setAuthToken(token);
-      return { success: true };
-    } catch (error) {
-      logout();
-      return { success: false };
     }
   };
 
@@ -133,7 +119,6 @@ export const AuthProvider = ({ children }) => {
     register,
     logout,
     updateProfile,
-    refreshToken,
     checkAuth
   };
 
