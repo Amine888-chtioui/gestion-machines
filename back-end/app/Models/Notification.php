@@ -17,7 +17,7 @@ class Notification extends Model
         'type',
         'data',
         'lu',
-        'lu_le',
+        'lu_le'
     ];
 
     protected $casts = [
@@ -26,13 +26,19 @@ class Notification extends Model
         'lu_le' => 'datetime',
     ];
 
-    // Relations
+    // ========================================
+    // RELATIONS
+    // ========================================
+
     public function user()
     {
         return $this->belongsTo(User::class);
     }
 
-    // Scopes
+    // ========================================
+    // SCOPES (pour requêtes fréquentes)
+    // ========================================
+
     public function scopeNonLues($query)
     {
         return $query->where('lu', false);
@@ -41,6 +47,11 @@ class Notification extends Model
     public function scopeLues($query)
     {
         return $query->where('lu', true);
+    }
+
+    public function scopeRecentes($query, $jours = 7)
+    {
+        return $query->where('created_at', '>=', now()->subDays($jours));
     }
 
     public function scopeParType($query, $type)
@@ -53,62 +64,16 @@ class Notification extends Model
         return $query->where('user_id', $userId);
     }
 
-    public function scopeRecentes($query, $jours = 7)
-    {
-        return $query->where('created_at', '>', now()->subDays($jours));
-    }
+    // ========================================
+    // MÉTHODES STATIQUES (Création de notifications)
+    // ========================================
 
-    // Accesseurs
-    public function getTypeColorAttribute()
+    /**
+     * Créer une notification simple
+     */
+    public static function creer($userId, $titre, $message, $type = 'info', $data = null)
     {
-        return match($this->type) {
-            'info' => 'primary',
-            'success' => 'success',
-            'warning' => 'warning',
-            'error' => 'danger',
-            default => 'secondary'
-        };
-    }
-
-    public function getTypeIconAttribute()
-    {
-        return match($this->type) {
-            'info' => 'fas fa-info-circle',
-            'success' => 'fas fa-check-circle',
-            'warning' => 'fas fa-exclamation-triangle',
-            'error' => 'fas fa-times-circle',
-            default => 'fas fa-bell'
-        };
-    }
-
-    public function getTempsEcouleAttribute()
-    {
-        return $this->created_at->diffForHumans();
-    }
-
-    // Méthodes
-    public function marquerCommeLue()
-    {
-        if (!$this->lu) {
-            $this->update([
-                'lu' => true,
-                'lu_le' => now(),
-            ]);
-        }
-    }
-
-    public function marquerCommeNonLue()
-    {
-        $this->update([
-            'lu' => false,
-            'lu_le' => null,
-        ]);
-    }
-
-    // Méthodes statiques pour créer des notifications
-    public static function creerNotification($userId, $titre, $message, $type = 'info', $data = null)
-    {
-        return static::create([
+        return self::create([
             'user_id' => $userId,
             'titre' => $titre,
             'message' => $message,
@@ -117,157 +82,262 @@ class Notification extends Model
         ]);
     }
 
-    public static function notifierNouvelleDemandeAdmin($demande)
+    /**
+     * Notifier tous les admins
+     */
+    public static function notifierAdmins($titre, $message, $type = 'info', $data = null)
     {
-        $admins = User::where('role', 'admin')->get();
+        $admins = User::where('role', 'admin')->where('actif', true)->get();
         
         foreach ($admins as $admin) {
-            static::creerNotification(
-                $admin->id,
-                'Nouvelle demande',
-                "Une nouvelle demande #{$demande->numero_demande} a été soumise par {$demande->user->name}",
-                'info',
-                ['demande_id' => $demande->id, 'type' => 'nouvelle_demande']
-            );
+            self::creer($admin->id, $titre, $message, $type, $data);
         }
+        
+        return $admins->count();
     }
 
+    /**
+     * Notifier tous les utilisateurs
+     */
+    public static function notifierTous($titre, $message, $type = 'info', $data = null)
+    {
+        $users = User::where('actif', true)->get();
+        
+        foreach ($users as $user) {
+            self::creer($user->id, $titre, $message, $type, $data);
+        }
+        
+        return $users->count();
+    }
+
+    /**
+     * Nouvelle demande - Notifier les admins
+     */
+    public static function notifierNouvelleDemandeAdmin($demande)
+    {
+        $titre = 'Nouvelle demande';
+        $message = "Nouvelle demande #{$demande->numero_demande} de {$demande->user->name}";
+        $data = ['demande_id' => $demande->id, 'type_demande' => $demande->type_demande];
+
+        return self::notifierAdmins($titre, $message, 'info', $data);
+    }
+
+    /**
+     * Changement de statut de demande
+     */
     public static function notifierStatutDemande($demande)
     {
-        $message = match($demande->statut) {
-            'acceptee' => "Votre demande #{$demande->numero_demande} a été acceptée",
-            'refusee' => "Votre demande #{$demande->numero_demande} a été refusée",
-            'en_cours' => "Votre demande #{$demande->numero_demande} est en cours de traitement",
-            'terminee' => "Votre demande #{$demande->numero_demande} a été terminée",
-            default => "Le statut de votre demande #{$demande->numero_demande} a été mis à jour"
-        };
-
+        $titre = 'Mise à jour de demande';
+        $message = "Votre demande #{$demande->numero_demande} a été {$demande->statut}";
+        
         $type = match($demande->statut) {
             'acceptee' => 'success',
             'refusee' => 'error',
-            'en_cours' => 'info',
             'terminee' => 'success',
             default => 'info'
         };
 
-        static::creerNotification(
-            $demande->user_id,
-            'Mise à jour de demande',
-            $message,
-            $type,
-            ['demande_id' => $demande->id, 'type' => 'statut_demande']
-        );
+        $data = [
+            'demande_id' => $demande->id,
+            'statut' => $demande->statut,
+            'commentaire' => $demande->commentaire_admin
+        ];
+
+        return self::creer($demande->user_id, $titre, $message, $type, $data);
     }
 
-    public static function notifierMaintenanceMachine($machine)
-    {
-        $admins = User::where('role', 'admin')->get();
-        
-        foreach ($admins as $admin) {
-            static::creerNotification(
-                $admin->id,
-                'Maintenance requise',
-                "La machine {$machine->nom} nécessite une maintenance",
-                'warning',
-                ['machine_id' => $machine->id, 'type' => 'maintenance_requise']
-            );
-        }
-    }
-
+    /**
+     * Composant défaillant
+     */
     public static function notifierComposantDefaillant($composant)
     {
-        $admins = User::where('role', 'admin')->get();
+        $titre = 'Composant défaillant';
+        $message = "Le composant '{$composant->nom}' de la machine '{$composant->machine->nom}' est défaillant";
         
-        foreach ($admins as $admin) {
-            static::creerNotification(
-                $admin->id,
-                'Composant défaillant',
-                "Le composant {$composant->nom} de la machine {$composant->machine->nom} est défaillant",
-                'error',
-                ['composant_id' => $composant->id, 'machine_id' => $composant->machine_id, 'type' => 'composant_defaillant']
-            );
-        }
+        $data = [
+            'composant_id' => $composant->id,
+            'machine_id' => $composant->machine_id,
+            'machine_nom' => $composant->machine->nom,
+            'composant_nom' => $composant->nom
+        ];
+
+        return self::notifierAdmins($titre, $message, 'error', $data);
     }
 
-    public static function notifierDemandeAcceptee($demande)
-{
-    return self::creerNotification(
-        $demande->user_id,
-        'Demande acceptée',
-        "Votre demande #{$demande->numero_demande} ({$demande->titre}) a été acceptée par l'administration.",
-        'success',
-        [
-            'demande_id' => $demande->id,
-            'numero_demande' => $demande->numero_demande,
-            'action' => 'demande_acceptee'
-        ]
-    );
-}
+    /**
+     * Machine en maintenance
+     */
+    public static function notifierMaintenanceMachine($machine)
+    {
+        $titre = 'Machine en maintenance';
+        $message = "La machine '{$machine->nom}' est passée en mode maintenance";
+        
+        $data = [
+            'machine_id' => $machine->id,
+            'machine_nom' => $machine->nom,
+            'localisation' => $machine->localisation
+        ];
 
-/**
- * Notifier l'utilisateur quand sa demande est refusée
- */
-public static function notifierDemandeRefusee($demande, $commentaire = null)
-{
-    $message = "Votre demande #{$demande->numero_demande} ({$demande->titre}) a été refusée par l'administration.";
-    
-    if ($commentaire) {
-        $message .= "\nMotif: " . $commentaire;
+        return self::notifierAdmins($titre, $message, 'warning', $data);
     }
 
-    return self::creerNotification(
-        $demande->user_id,
-        'Demande refusée',
-        $message,
-        'error',
-        [
-            'demande_id' => $demande->id,
-            'numero_demande' => $demande->numero_demande,
-            'commentaire' => $commentaire,
-            'action' => 'demande_refusee'
-        ]
-    );
-}
+    /**
+     * Inspection à faire
+     */
+    public static function notifierInspectionDue($composant)
+    {
+        $titre = 'Inspection requise';
+        $message = "Le composant '{$composant->nom}' nécessite une inspection";
+        
+        $data = [
+            'composant_id' => $composant->id,
+            'machine_id' => $composant->machine_id,
+            'prochaine_inspection' => $composant->prochaine_inspection
+        ];
 
-/**
- * Notifier l'utilisateur d'un changement de statut de sa demande
- */
-public static function notifierChangementStatut($demande, $commentaire = null)
-{
-    $statutLabels = [
-        'en_attente' => 'En attente',
-        'en_cours' => 'En cours de traitement',
-        'acceptee' => 'Acceptée',
-        'refusee' => 'Refusée',
-        'terminee' => 'Terminée'
-    ];
-
-    $statutLabel = $statutLabels[$demande->statut] ?? $demande->statut;
-    $message = "Le statut de votre demande #{$demande->numero_demande} ({$demande->titre}) a été mis à jour: {$statutLabel}";
-    
-    if ($commentaire) {
-        $message .= "\nCommentaire: " . $commentaire;
+        return self::notifierAdmins($titre, $message, 'warning', $data);
     }
 
-    $type = match($demande->statut) {
-        'acceptee', 'terminee' => 'success',
-        'refusee' => 'error',
-        'en_cours' => 'info',
-        default => 'warning'
-    };
+    // ========================================
+    // MÉTHODES D'INSTANCE
+    // ========================================
 
-    return self::creerNotification(
-        $demande->user_id,
-        'Mise à jour de demande',
-        $message,
-        $type,
-        [
-            'demande_id' => $demande->id,
-            'numero_demande' => $demande->numero_demande,
-            'nouveau_statut' => $demande->statut,
-            'commentaire' => $commentaire,
-            'action' => 'statut_change'
-        ]
-    );
-}
+    /**
+     * Marquer comme lue
+     */
+    public function marquerCommeLue()
+    {
+        $this->update([
+            'lu' => true,
+            'lu_le' => now()
+        ]);
+        
+        return $this;
+    }
+
+    /**
+     * Marquer comme non lue
+     */
+    public function marquerCommeNonLue()
+    {
+        $this->update([
+            'lu' => false,
+            'lu_le' => null
+        ]);
+        
+        return $this;
+    }
+
+    // ========================================
+    // ACCESSEURS (pour l'affichage)
+    // ========================================
+
+    /**
+     * Couleur selon le type
+     */
+    public function getTypeColorAttribute()
+    {
+        return match($this->type) {
+            'success' => 'green',
+            'error' => 'red',
+            'warning' => 'orange',
+            'info' => 'blue',
+            default => 'gray'
+        };
+    }
+
+    /**
+     * Icône selon le type
+     */
+    public function getTypeIconAttribute()
+    {
+        return match($this->type) {
+            'success' => 'check-circle',
+            'error' => 'x-circle',
+            'warning' => 'exclamation-triangle',
+            'info' => 'information-circle',
+            default => 'bell'
+        };
+    }
+
+    /**
+     * Temps écoulé depuis la création
+     */
+    public function getTempsEcouleAttribute()
+    {
+        return $this->created_at->diffForHumans();
+    }
+
+    /**
+     * Format court du message (pour les listes)
+     */
+    public function getMessageCourtAttribute()
+    {
+        return strlen($this->message) > 100 
+            ? substr($this->message, 0, 100) . '...' 
+            : $this->message;
+    }
+
+    /**
+     * Vérifier si la notification est récente (moins de 24h)
+     */
+    public function getEstRecenteAttribute()
+    {
+        return $this->created_at->diffInHours(now()) < 24;
+    }
+
+    /**
+     * Vérifier si la notification est urgente
+     */
+    public function getEstUrgenteAttribute()
+    {
+        return in_array($this->type, ['error', 'warning']);
+    }
+
+    // ========================================
+    // MÉTHODES UTILITAIRES
+    // ========================================
+
+    /**
+     * Supprimer les notifications anciennes
+     */
+    public static function nettoyerAnnciennes($jours = 30)
+    {
+        return self::where('created_at', '<', now()->subDays($jours))->delete();
+    }
+
+    /**
+     * Marquer toutes comme lues pour un utilisateur
+     */
+    public static function marquerToutesLues($userId)
+    {
+        return self::where('user_id', $userId)
+                  ->where('lu', false)
+                  ->update([
+                      'lu' => true,
+                      'lu_le' => now()
+                  ]);
+    }
+
+    /**
+     * Compter les non lues pour un utilisateur
+     */
+    public static function compterNonLues($userId)
+    {
+        return self::where('user_id', $userId)->where('lu', false)->count();
+    }
+
+    /**
+     * Obtenir les statistiques pour un utilisateur
+     */
+    public static function statistiquesUtilisateur($userId)
+    {
+        return [
+            'total' => self::where('user_id', $userId)->count(),
+            'non_lues' => self::where('user_id', $userId)->where('lu', false)->count(),
+            'lues' => self::where('user_id', $userId)->where('lu', true)->count(),
+            'recentes' => self::where('user_id', $userId)->recentes()->count(),
+            'urgentes' => self::where('user_id', $userId)->whereIn('type', ['error', 'warning'])->count(),
+        ];
+    }
 }
