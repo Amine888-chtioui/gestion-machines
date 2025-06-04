@@ -55,20 +55,25 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // === MACHINES ===
     Route::prefix('machines')->group(function () {
-        Route::get('/', [MachineController::class, 'index']);
-        Route::get('/actives', [MachineController::class, 'getActives']);
-        Route::get('/statistiques', [MachineController::class, 'statistiques']);
-        Route::get('/{id}', [MachineController::class, 'show']);
-        
-        // Routes admin
-        Route::middleware('role:admin')->group(function () {
-            Route::post('/', [MachineController::class, 'store']);
-            Route::put('/{id}', [MachineController::class, 'update']);
-            Route::delete('/{id}', [MachineController::class, 'destroy']);
-            Route::patch('/{id}/statut', [MachineController::class, 'updateStatut']);
-            Route::delete('/{id}/image', [MachineController::class, 'deleteImage']);
-        });
+    Route::get('/', [MachineController::class, 'index']);
+    Route::get('/actives', [MachineController::class, 'getActives']);
+    Route::get('/statistiques', [MachineController::class, 'statistiques']);
+    Route::get('/{id}', [MachineController::class, 'show']);
+    
+    // NOUVELLES ROUTES À AJOUTER
+    Route::get('/{id}/composants', [MachineController::class, 'getComposants']);
+    Route::get('/{id}/demandes', [MachineController::class, 'getDemandes']);
+    
+    // Routes admin
+    Route::middleware('role:admin')->group(function () {
+        Route::post('/', [MachineController::class, 'store']);
+        Route::put('/{id}', [MachineController::class, 'update']);
+        Route::delete('/{id}', [MachineController::class, 'destroy']);
+        Route::patch('/{id}/statut', [MachineController::class, 'updateStatut']);
+        Route::patch('/{id}/maintenance', [MachineController::class, 'updateMaintenance']);
+        Route::delete('/{id}/image', [MachineController::class, 'deleteImage']);
     });
+});
 
     // === COMPOSANTS ===
     Route::prefix('composants')->group(function () {

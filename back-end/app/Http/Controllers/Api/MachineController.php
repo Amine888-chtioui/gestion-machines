@@ -256,6 +256,72 @@ class MachineController extends Controller
         ];
     }
 
+    public function getComposants($id)
+{
+    $machine = Machine::findOrFail($id);
+    
+    $composants = $machine->composants()
+                         ->with('type')
+                         ->orderBy('nom')
+                         ->get(['id', 'nom', 'reference', 'statut', 'type_id']);
+
+    // Ajouter les URLs d'images pour les composants
+    $composants->transform(function ($composant) {
+        if ($composant->image_path && Storage::disk('public')->exists($composant->image_path)) {
+            $composant->image_url = url('storage/' . $composant->image_path);
+            $composant->has_image = true;
+        } else {
+            $composant->image_url = null;
+            $composant->has_image = false;
+        }
+        return $composant;
+    });
+
+    return response()->json([
+        'message' => 'Composants de la machine récupérés avec succès',
+        'data' => $composants
+    ]);
+}
+
+/**
+ * Obtenir les demandes d'une machine
+ */
+public function getDemandes($id)
+{
+    $machine = Machine::findOrFail($id);
+    
+    $demandes = $machine->demandes()
+                       ->with(['user', 'composant'])
+                       ->orderBy('created_at', 'desc')
+                       ->get();
+
+    return response()->json([
+        'message' => 'Demandes de la machine récupérées avec succès',
+        'data' => $demandes
+    ]);
+}
+
+/**
+ * Mettre à jour la maintenance d'une machine
+ */
+public function updateMaintenance(Request $request, $id)
+{
+    $machine = Machine::findOrFail($id);
+
+    $request->validate([
+        'derniere_maintenance' => 'required|date'
+    ]);
+
+    $machine->update([
+        'derniere_maintenance' => $request->derniere_maintenance
+    ]);
+
+    return response()->json([
+        'message' => 'Maintenance mise à jour avec succès',
+        'data' => $machine
+    ]);
+}
+
     private function processSpecifications($specs)
     {
         if (is_string($specs)) {
