@@ -179,29 +179,6 @@ const Register = () => {
           </Form.Control.Feedback>
         </Form.Group>
 
-        {/* Rôle */}
-        <Form.Group className="mb-3">
-          <Form.Label className="fw-semibold text-dark">
-            <i className="fas fa-user-tag me-2 text-primary"></i>
-            Rôle
-          </Form.Label>
-          <Form.Select
-            name="role"
-            value={formData.role}
-            onChange={handleChange}
-            style={{
-              padding: '0.75rem 1rem',
-              fontSize: '1rem',
-              borderRadius: '8px',
-              border: '2px solid #e9ecef',
-              transition: 'all 0.3s ease'
-            }}
-          >
-            <option value="user">Utilisateur</option>
-            <option value="admin">Administrateur</option>
-          </Form.Select>
-        </Form.Group>
-
         {/* Mot de passe */}
         <Form.Group className="mb-3">
           <Form.Label className="fw-semibold text-dark">

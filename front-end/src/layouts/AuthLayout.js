@@ -36,8 +36,7 @@ const AuthLayout = ({ children }) => {
               <div className="mb-3">
                 <i className="fas fa-industry display-4 text-white"></i>
               </div>
-              <h1 className="h3 text-white fw-bold mb-2">TELSOSPLICE TS3</h1>
-              <p className="text-white-50 mb-0">Système de gestion des machines et composants</p>
+              <h1 className="h3 text-white fw-bold mb-2">Système de gestion des machines et composants</h1>
             </div>
 
             {/* Carte de contenu */}

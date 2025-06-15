@@ -1,6 +1,5 @@
-// src/pages/Demandes.js - Version optimisée
 import React, { useState, useEffect } from 'react';
-import { Card, Row, Col, Table, Badge, Button, Modal, Form, Spinner } from 'react-bootstrap';
+import { Card, Row, Col, Table, Badge, Button, Modal, Form, Spinner, Alert } from 'react-bootstrap';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import apiService from '../services/apiService';
@@ -17,6 +16,7 @@ const Demandes = () => {
   const [commentaire, setCommentaire] = useState('');
   const [machines, setMachines] = useState([]);
   const [composants, setComposants] = useState([]);
+  const [loadingComposants, setLoadingComposants] = useState(false);
   const [filters, setFilters] = useState({
     search: '', statut: '', type_demande: '', priorite: ''
   });
@@ -26,6 +26,7 @@ const Demandes = () => {
     quantite_demandee: 1, budget_estime: '', date_souhaite: ''
   });
   const [submitting, setSubmitting] = useState(false);
+  const [formErrors, setFormErrors] = useState({});
 
   useEffect(() => {
     loadDemandes();
@@ -39,6 +40,7 @@ const Demandes = () => {
       setDemandes(response.data.data.data || response.data.data);
     } catch (error) {
       console.error('Erreur:', error);
+      toast.error('Erreur lors du chargement des demandes');
     } finally {
       setLoading(false);
     }
@@ -50,6 +52,7 @@ const Demandes = () => {
       setMachines(response.data.data || []);
     } catch (error) {
       console.error('Erreur machines:', error);
+      toast.error('Erreur lors du chargement des machines');
     }
   };
 
@@ -58,18 +61,44 @@ const Demandes = () => {
       setComposants([]);
       return;
     }
+    
     try {
-      // Note: Cette route n'existe pas dans votre API, à ajouter si nécessaire
-      // const response = await apiService.getMachineComposants(machineId);
-      // setComposants(response.data.data || []);
-      setComposants([]);
+      setLoadingComposants(true);
+      console.log('Chargement des composants pour la machine ID:', machineId);
+      
+      const response = await apiService.getMachineComposants(machineId);
+      console.log('Composants reçus:', response.data.data);
+      
+      setComposants(response.data.data || []);
     } catch (error) {
       console.error('Erreur composants:', error);
+      toast.error('Erreur lors du chargement des composants');
+      setComposants([]);
+    } finally {
+      setLoadingComposants(false);
     }
+  };
+
+  const validateForm = () => {
+    const errors = {};
+    
+    if (!formData.machine_id) errors.machine_id = 'La machine est requise';
+    if (!formData.type_demande) errors.type_demande = 'Le type de demande est requis';
+    if (!formData.titre.trim()) errors.titre = 'Le titre est requis';
+    if (!formData.description.trim()) errors.description = 'La description est requise';
+    
+    setFormErrors(errors);
+    return Object.keys(errors).length === 0;
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    if (!validateForm()) {
+      toast.error('Veuillez corriger les erreurs du formulaire');
+      return;
+    }
+
     setSubmitting(true);
     try {
       await apiService.createDemande(formData);
@@ -79,6 +108,12 @@ const Demandes = () => {
       loadDemandes();
     } catch (error) {
       console.error('Erreur:', error);
+      if (error.response?.data?.errors) {
+        const serverErrors = error.response.data.errors;
+        Object.values(serverErrors).flat().forEach(err => toast.error(err));
+      } else {
+        toast.error('Erreur lors de la création de la demande');
+      }
     } finally {
       setSubmitting(false);
     }
@@ -98,15 +133,15 @@ const Demandes = () => {
 
   const confirmerAcceptation = async () => {
     if (!selectedDemande) return;
+    
     setSubmitting(true);
     try {
       await apiService.accepterDemande(selectedDemande.id, commentaire);
       toast.success('Demande acceptée');
       setShowAcceptModal(false);
-      setSelectedDemande(null);
-      setCommentaire('');
       loadDemandes();
     } catch (error) {
+      console.error('Erreur:', error);
       toast.error('Erreur lors de l\'acceptation');
     } finally {
       setSubmitting(false);
@@ -114,19 +149,16 @@ const Demandes = () => {
   };
 
   const confirmerRefus = async () => {
-    if (!selectedDemande || !commentaire.trim()) {
-      toast.error('Le motif de refus est obligatoire');
-      return;
-    }
+    if (!selectedDemande || !commentaire.trim()) return;
+    
     setSubmitting(true);
     try {
       await apiService.refuserDemande(selectedDemande.id, commentaire);
       toast.success('Demande refusée');
       setShowRefuseModal(false);
-      setSelectedDemande(null);
-      setCommentaire('');
       loadDemandes();
     } catch (error) {
+      console.error('Erreur:', error);
       toast.error('Erreur lors du refus');
     } finally {
       setSubmitting(false);
@@ -140,14 +172,25 @@ const Demandes = () => {
       quantite_demandee: 1, budget_estime: '', date_souhaite: ''
     });
     setComposants([]);
+    setFormErrors({});
+  };
+
+  const handleFieldChange = (field, value) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+    
+    // Effacer l'erreur si l'utilisateur corrige
+    if (formErrors[field]) {
+      setFormErrors(prev => ({ ...prev, [field]: '' }));
+    }
   };
 
   const StatutBadge = ({ statut }) => (
     <Badge bg={
+      statut === 'en_attente' ? 'warning' :
       statut === 'acceptee' ? 'success' :
       statut === 'refusee' ? 'danger' :
       statut === 'en_cours' ? 'info' :
-      statut === 'terminee' ? 'secondary' : 'warning'
+      statut === 'terminee' ? 'secondary' : 'secondary'
     }>
       {statut.replace('_', ' ')}
     </Badge>
@@ -157,7 +200,7 @@ const Demandes = () => {
     <Badge bg={
       priorite === 'critique' ? 'danger' :
       priorite === 'haute' ? 'warning' :
-      priorite === 'normale' ? 'info' : 'success'
+      priorite === 'normale' ? 'info' : 'secondary'
     }>
       {priorite}
     </Badge>
@@ -171,8 +214,8 @@ const Demandes = () => {
   if (loading) {
     return (
       <div className="text-center py-5">
-        <Spinner animation="border" size="lg" />
-        <p className="mt-3">Chargement des demandes...</p>
+        <Spinner animation="border" variant="primary" />
+        <div className="mt-3">Chargement des demandes...</div>
       </div>
     );
   }
@@ -180,16 +223,15 @@ const Demandes = () => {
   return (
     <div>
       {/* En-tête */}
-      <Row className="mb-4">
-        <Col>
-          <div className="d-flex justify-content-between align-items-center">
-            <h2><i className="fas fa-file-alt me-2"></i>Demandes</h2>
-            <Button variant="primary" onClick={() => setShowModal(true)}>
-              <i className="fas fa-plus me-2"></i>Nouvelle Demande
-            </Button>
-          </div>
-        </Col>
-      </Row>
+      <div className="d-flex justify-content-between align-items-center mb-4">
+        <h1>
+          <i className="fas fa-file-alt me-2 text-primary"></i>
+          Demandes
+        </h1>
+        <Button variant="primary" onClick={() => setShowModal(true)}>
+          <i className="fas fa-plus me-2"></i>Nouvelle Demande
+        </Button>
+      </div>
 
       {/* Filtres */}
       <Card className="mb-4">
@@ -203,20 +245,20 @@ const Demandes = () => {
                 onChange={(e) => setFilters(prev => ({ ...prev, search: e.target.value }))}
               />
             </Col>
-            <Col md={2}>
+            <Col md={3}>
               <Form.Select
                 value={filters.statut}
                 onChange={(e) => setFilters(prev => ({ ...prev, statut: e.target.value }))}
               >
                 <option value="">Tous les statuts</option>
                 <option value="en_attente">En attente</option>
-                <option value="en_cours">En cours</option>
                 <option value="acceptee">Acceptée</option>
                 <option value="refusee">Refusée</option>
+                <option value="en_cours">En cours</option>
                 <option value="terminee">Terminée</option>
               </Form.Select>
             </Col>
-            <Col md={2}>
+            <Col md={3}>
               <Form.Select
                 value={filters.type_demande}
                 onChange={(e) => setFilters(prev => ({ ...prev, type_demande: e.target.value }))}
@@ -228,7 +270,7 @@ const Demandes = () => {
                 <option value="inspection">Inspection</option>
               </Form.Select>
             </Col>
-            <Col md={2}>
+            <Col md={3}>
               <Form.Select
                 value={filters.priorite}
                 onChange={(e) => setFilters(prev => ({ ...prev, priorite: e.target.value }))}
@@ -240,30 +282,15 @@ const Demandes = () => {
                 <option value="critique">Critique</option>
               </Form.Select>
             </Col>
-            <Col md={1}>
-              <Button variant="outline-secondary" onClick={() => setFilters({ search: '', statut: '', type_demande: '', priorite: '' })}>
-                Effacer
-              </Button>
-            </Col>
           </Row>
         </Card.Body>
       </Card>
 
-      {/* Liste */}
-      {demandes.length === 0 ? (
-        <Card>
-          <Card.Body className="text-center py-5">
-            <i className="fas fa-file-alt fa-3x text-muted mb-3"></i>
-            <h4>Aucune demande</h4>
-            <Button variant="primary" onClick={() => setShowModal(true)}>
-              Créer une demande
-            </Button>
-          </Card.Body>
-        </Card>
-      ) : (
-        <Card>
-          <Card.Body className="p-0">
-            <Table hover>
+      {/* Liste des demandes */}
+      <Card>
+        <Card.Body>
+          {demandes.length > 0 ? (
+            <Table responsive hover>
               <thead>
                 <tr>
                   <th>Numéro</th>
@@ -278,61 +305,40 @@ const Demandes = () => {
                 </tr>
               </thead>
               <tbody>
-                {demandes.map((demande) => (
+                {demandes.map(demande => (
                   <tr key={demande.id}>
-                    <td>
-                      <span className="fw-bold text-primary">
-                        {demande.numero_demande}
-                      </span>
-                    </td>
-                    <td>
-                      <div className="fw-bold">{demande.titre}</div>
-                      {demande.description && (
-                        <small className="text-muted">
-                          {demande.description.length > 50
-                            ? `${demande.description.substring(0, 50)}...`
-                            : demande.description}
-                        </small>
-                      )}
-                    </td>
-                    <td>
-                      <div className="fw-bold">{demande.machine?.nom}</div>
-                      {demande.machine?.localisation && (
-                        <small className="text-muted">{demande.machine.localisation}</small>
-                      )}
-                    </td>
+                    <td className="fw-bold text-primary">{demande.numero_demande}</td>
+                    <td>{demande.titre}</td>
+                    <td>{demande.machine?.nom}</td>
                     <td>
                       <Badge bg="info">{demande.type_demande}</Badge>
                     </td>
                     <td><PrioriteBadge priorite={demande.priorite} /></td>
                     <td><StatutBadge statut={demande.statut} /></td>
-                    <td>
-                      <div className="fw-bold">{demande.user?.name}</div>
-                      <small className="text-muted">{demande.user?.email}</small>
-                    </td>
+                    <td>{demande.user?.name}</td>
                     <td>{formatDate(demande.created_at)}</td>
                     <td>
-                      <div className="d-flex gap-1">
+                      <div className="d-flex gap-2">
                         <Button
+                          size="sm"
+                          variant="outline-primary"
                           as={Link}
                           to={`/demandes/${demande.id}`}
-                          variant="outline-primary"
-                          size="sm"
                         >
                           <i className="fas fa-eye"></i>
                         </Button>
                         {user?.role === 'admin' && demande.statut === 'en_attente' && (
                           <>
                             <Button
-                              variant="outline-success"
                               size="sm"
+                              variant="outline-success"
                               onClick={() => handleAccepter(demande)}
                             >
                               <i className="fas fa-check"></i>
                             </Button>
                             <Button
-                              variant="outline-danger"
                               size="sm"
+                              variant="outline-danger"
                               onClick={() => handleRefuser(demande)}
                             >
                               <i className="fas fa-times"></i>
@@ -345,9 +351,15 @@ const Demandes = () => {
                 ))}
               </tbody>
             </Table>
-          </Card.Body>
-        </Card>
-      )}
+          ) : (
+            <div className="text-center py-5 text-muted">
+              <i className="fas fa-file-alt fa-3x mb-3"></i>
+              <h5>Aucune demande trouvée</h5>
+              <p>Il n'y a pas encore de demandes dans le système.</p>
+            </div>
+          )}
+        </Card.Body>
+      </Card>
 
       {/* Modal création */}
       <Modal show={showModal} onHide={() => setShowModal(false)} size="lg">
@@ -356,6 +368,17 @@ const Demandes = () => {
         </Modal.Header>
         <Form onSubmit={handleSubmit}>
           <Modal.Body>
+            {Object.keys(formErrors).length > 0 && (
+              <Alert variant="danger">
+                <strong>Veuillez corriger les erreurs suivantes :</strong>
+                <ul className="mb-0 mt-2">
+                  {Object.values(formErrors).map((error, index) => (
+                    <li key={index}>{error}</li>
+                  ))}
+                </ul>
+              </Alert>
+            )}
+
             <Row className="g-3">
               <Col md={6}>
                 <Form.Group>
@@ -363,9 +386,11 @@ const Demandes = () => {
                   <Form.Select
                     value={formData.machine_id}
                     onChange={(e) => {
-                      setFormData(prev => ({ ...prev, machine_id: e.target.value, composant_id: '' }));
+                      handleFieldChange('machine_id', e.target.value);
+                      handleFieldChange('composant_id', ''); // Reset composant
                       loadComposants(e.target.value);
                     }}
+                    isInvalid={!!formErrors.machine_id}
                     required
                   >
                     <option value="">Sélectionnez une machine</option>
@@ -375,31 +400,45 @@ const Demandes = () => {
                       </option>
                     ))}
                   </Form.Select>
+                  <Form.Control.Feedback type="invalid">
+                    {formErrors.machine_id}
+                  </Form.Control.Feedback>
                 </Form.Group>
               </Col>
+              
               <Col md={6}>
                 <Form.Group>
                   <Form.Label>Composant</Form.Label>
                   <Form.Select
                     value={formData.composant_id}
-                    onChange={(e) => setFormData(prev => ({ ...prev, composant_id: e.target.value }))}
-                    disabled={!formData.machine_id}
+                    onChange={(e) => handleFieldChange('composant_id', e.target.value)}
+                    disabled={!formData.machine_id || loadingComposants}
                   >
-                    <option value="">Aucun composant spécifique</option>
+                    <option value="">
+                      {loadingComposants ? 'Chargement...' : 'Aucun composant spécifique'}
+                    </option>
                     {composants.map(composant => (
                       <option key={composant.id} value={composant.id}>
                         {composant.nom} ({composant.reference})
                       </option>
                     ))}
                   </Form.Select>
+                  {loadingComposants && (
+                    <Form.Text className="text-muted">
+                      <Spinner size="sm" className="me-1" />
+                      Chargement des composants...
+                    </Form.Text>
+                  )}
                 </Form.Group>
               </Col>
+              
               <Col md={6}>
                 <Form.Group>
                   <Form.Label>Type de demande *</Form.Label>
                   <Form.Select
                     value={formData.type_demande}
-                    onChange={(e) => setFormData(prev => ({ ...prev, type_demande: e.target.value }))}
+                    onChange={(e) => handleFieldChange('type_demande', e.target.value)}
+                    isInvalid={!!formErrors.type_demande}
                     required
                   >
                     <option value="maintenance">Maintenance</option>
@@ -407,14 +446,18 @@ const Demandes = () => {
                     <option value="reparation">Réparation</option>
                     <option value="inspection">Inspection</option>
                   </Form.Select>
+                  <Form.Control.Feedback type="invalid">
+                    {formErrors.type_demande}
+                  </Form.Control.Feedback>
                 </Form.Group>
               </Col>
+              
               <Col md={6}>
                 <Form.Group>
                   <Form.Label>Priorité</Form.Label>
                   <Form.Select
                     value={formData.priorite}
-                    onChange={(e) => setFormData(prev => ({ ...prev, priorite: e.target.value }))}
+                    onChange={(e) => handleFieldChange('priorite', e.target.value)}
                   >
                     <option value="basse">Basse</option>
                     <option value="normale">Normale</option>
@@ -423,17 +466,24 @@ const Demandes = () => {
                   </Form.Select>
                 </Form.Group>
               </Col>
+              
               <Col md={12}>
                 <Form.Group>
                   <Form.Label>Titre *</Form.Label>
                   <Form.Control
                     type="text"
                     value={formData.titre}
-                    onChange={(e) => setFormData(prev => ({ ...prev, titre: e.target.value }))}
+                    onChange={(e) => handleFieldChange('titre', e.target.value)}
+                    placeholder="Titre de la demande"
+                    isInvalid={!!formErrors.titre}
                     required
                   />
+                  <Form.Control.Feedback type="invalid">
+                    {formErrors.titre}
+                  </Form.Control.Feedback>
                 </Form.Group>
               </Col>
+              
               <Col md={12}>
                 <Form.Group>
                   <Form.Label>Description *</Form.Label>
@@ -441,11 +491,17 @@ const Demandes = () => {
                     as="textarea"
                     rows={3}
                     value={formData.description}
-                    onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
+                    onChange={(e) => handleFieldChange('description', e.target.value)}
+                    placeholder="Description détaillée de la demande"
+                    isInvalid={!!formErrors.description}
                     required
                   />
+                  <Form.Control.Feedback type="invalid">
+                    {formErrors.description}
+                  </Form.Control.Feedback>
                 </Form.Group>
               </Col>
+              
               <Col md={12}>
                 <Form.Group>
                   <Form.Label>Justification</Form.Label>
@@ -453,40 +509,45 @@ const Demandes = () => {
                     as="textarea"
                     rows={2}
                     value={formData.justification}
-                    onChange={(e) => setFormData(prev => ({ ...prev, justification: e.target.value }))}
+                    onChange={(e) => handleFieldChange('justification', e.target.value)}
+                    placeholder="Justification de la demande (optionnel)"
                   />
                 </Form.Group>
               </Col>
+              
               <Col md={4}>
                 <Form.Group>
-                  <Form.Label>Quantité</Form.Label>
+                  <Form.Label>Quantité demandée</Form.Label>
                   <Form.Control
                     type="number"
-                    value={formData.quantite_demandee}
-                    onChange={(e) => setFormData(prev => ({ ...prev, quantite_demandee: e.target.value }))}
                     min="1"
+                    value={formData.quantite_demandee}
+                    onChange={(e) => handleFieldChange('quantite_demandee', e.target.value)}
                   />
                 </Form.Group>
               </Col>
+              
               <Col md={4}>
                 <Form.Group>
                   <Form.Label>Budget estimé (€)</Form.Label>
                   <Form.Control
                     type="number"
                     step="0.01"
+                    min="0"
                     value={formData.budget_estime}
-                    onChange={(e) => setFormData(prev => ({ ...prev, budget_estime: e.target.value }))}
+                    onChange={(e) => handleFieldChange('budget_estime', e.target.value)}
+                    placeholder="0.00"
                   />
                 </Form.Group>
               </Col>
+              
               <Col md={4}>
                 <Form.Group>
                   <Form.Label>Date souhaitée</Form.Label>
                   <Form.Control
                     type="date"
                     value={formData.date_souhaite}
-                    onChange={(e) => setFormData(prev => ({ ...prev, date_souhaite: e.target.value }))}
-                    min={new Date().toISOString().split('T')[0]}
+                    onChange={(e) => handleFieldChange('date_souhaite', e.target.value)}
                   />
                 </Form.Group>
               </Col>
@@ -497,7 +558,14 @@ const Demandes = () => {
               Annuler
             </Button>
             <Button type="submit" variant="primary" disabled={submitting}>
-              {submitting ? <Spinner size="sm" /> : 'Créer la demande'}
+              {submitting ? (
+                <>
+                  <Spinner as="span" animation="border" size="sm" className="me-2" />
+                  Création...
+                </>
+              ) : (
+                'Créer la demande'
+              )}
             </Button>
           </Modal.Footer>
         </Form>

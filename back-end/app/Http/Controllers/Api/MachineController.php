@@ -162,6 +162,69 @@ class MachineController extends Controller
         ]);
     }
 
+    public function forceDestroy($id)
+{
+    try {
+        $machine = Machine::with(['composants', 'demandes'])->findOrFail($id);
+        
+        // Supprimer d'abord tous les composants
+        if ($machine->composants()->count() > 0) {
+            foreach ($machine->composants as $composant) {
+                // Supprimer l'image du composant si elle existe
+                if ($composant->image) {
+                    $imagePath = public_path('storage/' . $composant->image);
+                    if (file_exists($imagePath)) {
+                        unlink($imagePath);
+                    }
+                }
+                $composant->delete();
+            }
+        }
+
+        // Supprimer les demandes
+        if ($machine->demandes()->count() > 0) {
+            $machine->demandes()->delete();
+        }
+
+        // Supprimer l'image de la machine
+        if ($machine->image) {
+            $imagePath = public_path('storage/' . $machine->image);
+            if (file_exists($imagePath)) {
+                unlink($imagePath);
+            }
+        }
+
+        // Supprimer les notifications liées
+        Notification::where('data->machine_id', $machine->id)->delete();
+
+        // Supprimer la machine
+        $machineName = $machine->nom;
+        $machine->delete();
+
+        Log::warning('Machine supprimée de force', [
+            'machine_id' => $id,
+            'machine_name' => $machineName,
+            'admin_user' => auth()->user()->email
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => "Machine '{$machineName}' et tous ses composants supprimés avec succès"
+        ]);
+
+    } catch (\Exception $e) {
+        Log::error('Erreur lors de la suppression forcée', [
+            'machine_id' => $id,
+            'error' => $e->getMessage()
+        ]);
+
+        return response()->json([
+            'success' => false,
+            'message' => 'Erreur lors de la suppression forcée'
+        ], 500);
+    }
+    }
+
     public function deleteImage($id)
     {
         $machine = Machine::findOrFail($id);

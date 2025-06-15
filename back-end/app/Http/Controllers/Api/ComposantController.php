@@ -70,37 +70,58 @@ class ComposantController extends Controller
     }
 
     public function store(Request $request)
-    {
-        $rules = [
-            'nom' => 'required|string|max:100',
-            'reference' => 'required|string|max:50|unique:composants',
-            'machine_id' => 'required|exists:machines,id',
-            'type_id' => 'required|exists:types,id',
-            'description' => 'nullable|string',
-            'statut' => 'sometimes|in:bon,usure,defaillant,remplace',
-            'quantite' => 'required|integer|min:1',
-            'prix_unitaire' => 'nullable|numeric|min:0',
-            'fournisseur' => 'nullable|string|max:100',
-            'date_installation' => 'nullable|date',
-            'derniere_inspection' => 'nullable|date',
-            'prochaine_inspection' => 'nullable|date',
-            'duree_vie_estimee' => 'nullable|integer|min:1',
-            'notes' => 'nullable|string',
-            'caracteristiques' => 'nullable',
-        ];
+{
+    $rules = [
+        'nom' => 'required|string|max:100',
+        'reference' => 'required|string|max:50|unique:composants',
+        'machine_id' => 'required|exists:machines,id',
+        'type_id' => 'required|exists:types,id',
+        'description' => 'nullable|string', // ✅ CHANGÉ : nullable au lieu de required
+        'statut' => 'sometimes|in:bon,usure,defaillant,remplace',
+        'quantite' => 'required|integer|min:1',
+        'prix_unitaire' => 'nullable|numeric|min:0',
+        'fournisseur' => 'nullable|string|max:100',
+        'date_installation' => 'nullable|date',
+        'derniere_inspection' => 'nullable|date',
+        'prochaine_inspection' => 'nullable|date',
+        'duree_vie_estimee' => 'nullable|integer|min:1',
+        'notes' => 'nullable|string',
+        'caracteristiques' => 'nullable',
+    ];
 
-        if ($request->hasFile('image')) {
-            $rules['image'] = 'required|image|mimes:jpeg,png,jpg,gif|max:2048';
-        }
+    if ($request->hasFile('image')) {
+        $rules['image'] = 'required|image|mimes:jpeg,png,jpg,gif|max:5120'; // 5MB max
+    }
 
-        $data = $request->validate($rules);
+    // Messages d'erreur personnalisés
+    $messages = [
+        'nom.required' => 'Le nom du composant est obligatoire',
+        'nom.max' => 'Le nom ne peut pas dépasser 100 caractères',
+        'reference.required' => 'La référence est obligatoire',
+        'reference.unique' => 'Cette référence existe déjà',
+        'machine_id.required' => 'La machine est obligatoire',
+        'machine_id.exists' => 'La machine sélectionnée n\'existe pas',
+        'type_id.required' => 'Le type est obligatoire',
+        'type_id.exists' => 'Le type sélectionné n\'existe pas',
+        'quantite.required' => 'La quantité est obligatoire',
+        'quantite.integer' => 'La quantité doit être un nombre entier',
+        'quantite.min' => 'La quantité doit être au moins 1',
+        'prix_unitaire.numeric' => 'Le prix doit être un nombre',
+        'prix_unitaire.min' => 'Le prix ne peut pas être négatif',
+        'image.image' => 'Le fichier doit être une image',
+        'image.mimes' => 'L\'image doit être au format JPEG, PNG, JPG ou GIF',
+        'image.max' => 'L\'image ne peut pas dépasser 5MB',
+    ];
 
-        // Traiter caracteristiques
+    try {
+        $data = $request->validate($rules, $messages);
+
+        // Traiter caracteristiques si présentes
         if (isset($data['caracteristiques'])) {
             $data['caracteristiques'] = $this->processCaracteristiques($data['caracteristiques']);
         }
 
-        // Gestion image
+        // Gestion de l'image
         if ($request->hasFile('image')) {
             $data['image_path'] = $this->uploadImage($request->file('image'));
         }
@@ -110,46 +131,83 @@ class ComposantController extends Controller
         $this->addImageUrl($composant);
 
         return response()->json([
+            'success' => true,
             'message' => 'Composant créé avec succès',
             'data' => $composant
         ], 201);
+
+    } catch (\Illuminate\Validation\ValidationException $e) {
+        return response()->json([
+            'success' => false,
+            'message' => 'Erreurs de validation',
+            'errors' => $e->errors()
+        ], 422);
+    } catch (\Exception $e) {
+        return response()->json([
+            'success' => false,
+            'message' => 'Erreur lors de la création du composant',
+            'error' => $e->getMessage()
+        ], 500);
+    }
+}
+
+public function update(Request $request, $id)
+{
+    $composant = Composant::findOrFail($id);
+
+    $rules = [
+        'nom' => 'required|string|max:100',
+        'reference' => 'required|string|max:50|unique:composants,reference,' . $id,
+        'machine_id' => 'required|exists:machines,id',
+        'type_id' => 'required|exists:types,id',
+        'description' => 'nullable|string', // ✅ CHANGÉ : nullable au lieu de required
+        'statut' => 'sometimes|in:bon,usure,defaillant,remplace',
+        'quantite' => 'required|integer|min:1',
+        'prix_unitaire' => 'nullable|numeric|min:0',
+        'fournisseur' => 'nullable|string|max:100',
+        'date_installation' => 'nullable|date',
+        'derniere_inspection' => 'nullable|date',
+        'prochaine_inspection' => 'nullable|date',
+        'duree_vie_estimee' => 'nullable|integer|min:1',
+        'notes' => 'nullable|string',
+        'caracteristiques' => 'nullable',
+    ];
+
+    if ($request->hasFile('image')) {
+        $rules['image'] = 'required|image|mimes:jpeg,png,jpg,gif|max:5120'; // 5MB max
     }
 
-    public function update(Request $request, $id)
-    {
-        $composant = Composant::findOrFail($id);
+    // Messages d'erreur personnalisés
+    $messages = [
+        'nom.required' => 'Le nom du composant est obligatoire',
+        'nom.max' => 'Le nom ne peut pas dépasser 100 caractères',
+        'reference.required' => 'La référence est obligatoire',
+        'reference.unique' => 'Cette référence existe déjà',
+        'machine_id.required' => 'La machine est obligatoire',
+        'machine_id.exists' => 'La machine sélectionnée n\'existe pas',
+        'type_id.required' => 'Le type est obligatoire',
+        'type_id.exists' => 'Le type sélectionné n\'existe pas',
+        'quantite.required' => 'La quantité est obligatoire',
+        'quantite.integer' => 'La quantité doit être un nombre entier',
+        'quantite.min' => 'La quantité doit être au moins 1',
+        'prix_unitaire.numeric' => 'Le prix doit être un nombre',
+        'prix_unitaire.min' => 'Le prix ne peut pas être négatif',
+        'image.image' => 'Le fichier doit être une image',
+        'image.mimes' => 'L\'image doit être au format JPEG, PNG, JPG ou GIF',
+        'image.max' => 'L\'image ne peut pas dépasser 5MB',
+    ];
 
-        $rules = [
-            'nom' => 'sometimes|string|max:100',
-            'reference' => 'sometimes|string|max:50|unique:composants,reference,' . $id,
-            'machine_id' => 'sometimes|exists:machines,id',
-            'type_id' => 'sometimes|exists:types,id',
-            'description' => 'nullable|string',
-            'statut' => 'sometimes|in:bon,usure,defaillant,remplace',
-            'quantite' => 'sometimes|integer|min:1',
-            'prix_unitaire' => 'nullable|numeric|min:0',
-            'fournisseur' => 'nullable|string|max:100',
-            'date_installation' => 'nullable|date',
-            'derniere_inspection' => 'nullable|date',
-            'prochaine_inspection' => 'nullable|date',
-            'duree_vie_estimee' => 'nullable|integer|min:1',
-            'notes' => 'nullable|string',
-            'caracteristiques' => 'nullable',
-        ];
+    try {
+        $data = $request->validate($rules, $messages);
 
-        if ($request->hasFile('image')) {
-            $rules['image'] = 'required|image|mimes:jpeg,png,jpg,gif|max:2048';
-        }
-
-        $data = $request->validate($rules);
-
-        // Traiter caracteristiques
+        // Traiter caracteristiques si présentes
         if (isset($data['caracteristiques'])) {
             $data['caracteristiques'] = $this->processCaracteristiques($data['caracteristiques']);
         }
 
-        // Gestion image
+        // Gestion de l'image
         if ($request->hasFile('image')) {
+            // Supprimer l'ancienne image
             $this->deleteImageFile($composant->image_path);
             $data['image_path'] = $this->uploadImage($request->file('image'));
         }
@@ -166,10 +224,85 @@ class ComposantController extends Controller
         $this->addImageUrl($composant);
 
         return response()->json([
+            'success' => true,
             'message' => 'Composant mis à jour avec succès',
             'data' => $composant
         ]);
+
+    } catch (\Illuminate\Validation\ValidationException $e) {
+        return response()->json([
+            'success' => false,
+            'message' => 'Erreurs de validation',
+            'errors' => $e->errors()
+        ], 422);
+    } catch (\Exception $e) {
+        return response()->json([
+            'success' => false,
+            'message' => 'Erreur lors de la mise à jour du composant',
+            'error' => $e->getMessage()
+        ], 500);
     }
+}
+
+// Méthode pour valider une image
+private function validateImageFile($file)
+{
+    $allowedTypes = ['image/jpeg', 'image/png', 'image/jpg', 'image/gif'];
+    $maxSize = 5 * 1024 * 1024; // 5MB
+
+    if (!in_array($file->getMimeType(), $allowedTypes)) {
+        throw new \Exception('Type de fichier non autorisé');
+    }
+
+    if ($file->getSize() > $maxSize) {
+        throw new \Exception('Fichier trop volumineux (max 5MB)');
+    }
+
+    return true;
+}
+
+/**
+ * Supprimer l'image d'un composant
+ */
+public function deleteImage($id)
+{
+    try {
+        $composant = Composant::findOrFail($id);
+        
+        if ($composant->image) {
+            // Supprimer le fichier physique
+            $imagePath = public_path('storage/' . $composant->image);
+            if (file_exists($imagePath)) {
+                unlink($imagePath);
+            }
+            
+            // Mettre à jour la base de données
+            $composant->update(['image' => null]);
+            
+            return response()->json([
+                'success' => true,
+                'message' => 'Image supprimée avec succès'
+            ]);
+        }
+        
+        return response()->json([
+            'success' => false,
+            'message' => 'Aucune image à supprimer'
+        ], 404);
+
+    } catch (\Exception $e) {
+        Log::error('Erreur lors de la suppression de l\'image du composant', [
+            'composant_id' => $id,
+            'error' => $e->getMessage()
+        ]);
+
+        return response()->json([
+            'success' => false,
+            'message' => 'Erreur lors de la suppression de l\'image'
+        ], 500);
+    }
+}
+
 
     public function destroy($id)
     {
@@ -189,23 +322,7 @@ class ComposantController extends Controller
         ]);
     }
 
-    public function deleteImage($id)
-    {
-        $composant = Composant::findOrFail($id);
-        
-        if ($composant->image_path) {
-            $this->deleteImageFile($composant->image_path);
-            $composant->update(['image_path' => null]);
-            
-            return response()->json([
-                'message' => 'Image supprimée avec succès'
-            ]);
-        }
-        
-        return response()->json([
-            'message' => 'Aucune image à supprimer'
-        ], 404);
-    }
+    
 
     public function updateStatut(Request $request, $id)
     {

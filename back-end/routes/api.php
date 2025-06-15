@@ -15,7 +15,19 @@ use App\Http\Controllers\Api\NotificationController;
 // Routes publiques
 Route::post('/auth/login', [AuthController::class, 'login']);
 Route::post('/auth/register', [AuthController::class, 'register']);
+Route::post('/auth/forgot-password', [AuthController::class, 'forgotPassword']);
+Route::post('/auth/verify-reset-code', [AuthController::class, 'verifyResetCode']);
+Route::post('/auth/reset-password', [AuthController::class, 'resetPassword']);
+Route::post('/auth/verify-reset-token', [AuthController::class, 'verifyResetToken']);
 
+// Route de test (publique)
+Route::get('/test', function () {
+    return response()->json([
+        'message' => 'API fonctionne correctement',
+        'timestamp' => now(),
+        'version' => '1.0.0'
+    ]);
+});
 // Routes protégées
 Route::middleware('auth:sanctum')->group(function () {
     
@@ -59,8 +71,6 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/actives', [MachineController::class, 'getActives']);
     Route::get('/statistiques', [MachineController::class, 'statistiques']);
     Route::get('/{id}', [MachineController::class, 'show']);
-    
-    // NOUVELLES ROUTES À AJOUTER
     Route::get('/{id}/composants', [MachineController::class, 'getComposants']);
     Route::get('/{id}/demandes', [MachineController::class, 'getDemandes']);
     
@@ -72,6 +82,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::patch('/{id}/statut', [MachineController::class, 'updateStatut']);
         Route::patch('/{id}/maintenance', [MachineController::class, 'updateMaintenance']);
         Route::delete('/{id}/image', [MachineController::class, 'deleteImage']);
+        Route::get('/{id}/can-delete', [MachineController::class, 'canDelete']);
+        Route::delete('/{id}/force', [MachineController::class, 'forceDestroy']);
     });
 });
 

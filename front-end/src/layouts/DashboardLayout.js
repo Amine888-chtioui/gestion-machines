@@ -1,4 +1,3 @@
-// src/layouts/DashboardLayout.js - Version corrigée
 import React, { useState, useEffect } from 'react';
 import { Navbar, Nav, Container, Row, Col, Dropdown, Badge } from 'react-bootstrap';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
@@ -105,11 +104,11 @@ const DashboardLayout = ({ children }) => {
   return (
     <div className="dashboard-layout">
       {/* Top Navigation */}
-      <Navbar bg="dark" variant="dark" expand="lg" fixed="top" className="shadow-sm">
+      <Navbar bg="dark" variant="dark" expand="lg" fixed="top" className="shadow-sm" style={{ zIndex: 1030 }}>
         <Container fluid>
           <Navbar.Brand as={Link} to="/dashboard" className="d-flex align-items-center">
             <i className="fas fa-industry me-2"></i>
-            TELSOSPLICE TS3
+            <span className="d-none d-sm-inline">Système de gestion</span>
           </Navbar.Brand>
 
           <button
@@ -119,7 +118,7 @@ const DashboardLayout = ({ children }) => {
             <i className="fas fa-bars"></i>
           </button>
 
-          <Nav className="ms-auto">
+          <Nav className="ms-auto d-flex align-items-center">
             {/* Alertes rapides pour admin */}
             {user?.role === 'admin' && (
               <>
@@ -164,23 +163,61 @@ const DashboardLayout = ({ children }) => {
             </Nav.Link>
 
             {/* Menu utilisateur */}
-            <Dropdown>
+            <Dropdown align="end">
               <Dropdown.Toggle 
                 variant="outline-light" 
                 id="user-dropdown"
-                className="d-flex align-items-center"
+                className="d-flex align-items-center border-0 rounded"
+                style={{ minWidth: '120px' }}
               >
                 <i className="fas fa-user me-2"></i>
-                {user?.name}
+                <span className="d-none d-md-inline text-truncate" style={{ maxWidth: '100px' }}>
+                  {user?.name}
+                </span>
+                <i className="fas fa-chevron-down ms-2 small"></i>
               </Dropdown.Toggle>
 
-              <Dropdown.Menu>
-                <Dropdown.Item as={Link} to="/profile">
-                  <i className="fas fa-user-edit me-2"></i>
+              <Dropdown.Menu 
+                className="shadow-lg border-0"
+                style={{ 
+                  minWidth: '200px',
+                  zIndex: 1050,
+                  marginTop: '0.5rem'
+                }}
+              >
+                <div className="px-3 py-2 border-bottom">
+                  <small className="text-muted d-block">Connecté en tant que</small>
+                  <strong className="text-dark">{user?.name}</strong>
+                  <br />
+                  <small className="text-muted">{user?.email}</small>
+                </div>
+                
+                <Dropdown.Item 
+                  as={Link} 
+                  to="/profile" 
+                  className="d-flex align-items-center py-2"
+                >
+                  <i className="fas fa-user-edit me-2 text-primary"></i>
                   Mon Profil
                 </Dropdown.Item>
+                
+                {user?.role === 'admin' && (
+                  <Dropdown.Item 
+                    as={Link} 
+                    to="/admin/settings" 
+                    className="d-flex align-items-center py-2"
+                  >
+                    <i className="fas fa-cog me-2 text-secondary"></i>
+                    Paramètres
+                  </Dropdown.Item>
+                )}
+                
                 <Dropdown.Divider />
-                <Dropdown.Item onClick={handleLogout}>
+                
+                <Dropdown.Item 
+                  onClick={handleLogout} 
+                  className="d-flex align-items-center py-2 text-danger"
+                >
                   <i className="fas fa-sign-out-alt me-2"></i>
                   Déconnexion
                 </Dropdown.Item>
@@ -202,106 +239,83 @@ const DashboardLayout = ({ children }) => {
                     as={Link}
                     to={item.path}
                     className={`sidebar-link d-flex justify-content-between align-items-center mb-2 ${
-                      location.pathname === item.path ? 'active' : ''
+                      location.pathname === item.path ? 'active bg-primary text-white' : 'text-dark'
                     }`}
+                    style={{
+                      padding: '0.75rem 1rem',
+                      borderRadius: '0.375rem',
+                      textDecoration: 'none',
+                      transition: 'all 0.15s ease-in-out'
+                    }}
                   >
                     <div className="d-flex align-items-center">
-                      <i className={`${item.icon} me-2`}></i>
-                      {item.label}
+                      <i className={`${item.icon} me-3`} style={{ width: '16px' }}></i>
+                      <span>{item.label}</span>
                     </div>
                     {item.badge && (
-                      <Badge bg={item.badgeColor} className="badge-sm">
+                      <Badge bg={item.badgeColor} className="ms-2">
                         {item.badge}
                       </Badge>
                     )}
                   </Nav.Link>
                 ))}
               </Nav>
-
-              {/* Section informations système pour admin */}
-              {user?.role === 'admin' && (
-                <div className="mt-4 pt-3 border-top">
-                  <h6 className="text-muted mb-3">
-                    <i className="fas fa-info-circle me-2"></i>
-                    État du système
-                  </h6>
-                  <div className="small">
-                    <div className="d-flex justify-content-between mb-1">
-                      <span>Machines actives:</span>
-                      <span className="text-success fw-bold">
-                        {(alertes.machines_total || 0) - (alertes.machines_en_maintenance || 0)}
-                      </span>
-                    </div>
-                    <div className="d-flex justify-content-between mb-1">
-                      <span>En maintenance:</span>
-                      <span className="text-warning fw-bold">
-                        {alertes.machines_en_maintenance || 0}
-                      </span>
-                    </div>
-                    <div className="d-flex justify-content-between">
-                      <span>Composants OK:</span>
-                      <span className="text-success fw-bold">
-                        {(alertes.composants_total || 0) - (alertes.composants_defaillants || 0)}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              )}
             </div>
           </Col>
 
           {/* Main Content */}
           <Col lg={9} xl={10} className="main-content">
-            <Container fluid className="p-4">
+            <div className="p-4">
               {children}
-            </Container>
+            </div>
           </Col>
         </Row>
       </div>
 
-      {/* CSS intégré (corrigé) */}
-      <style>{`
-        .sidebar-link {
-          padding: 10px 15px;
-          border-radius: 8px;
-          color: #495057;
-          text-decoration: none;
-          transition: all 0.2s ease;
+      {/* Styles CSS inline pour corriger les problèmes */}
+      <style jsx>{`
+        .dropdown-menu {
+          box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15) !important;
+          border: 1px solid rgba(0, 0, 0, 0.05) !important;
+          border-radius: 0.5rem !important;
         }
-
+        
+        .dropdown-item:hover {
+          background-color: #f8f9fa !important;
+        }
+        
+        .dropdown-toggle::after {
+          display: none !important;
+        }
+        
         .sidebar-link:hover {
-          background-color: #f8f9fa;
-          color: #007bff;
-          text-decoration: none;
+          background-color: #e9ecef !important;
+          color: #495057 !important;
         }
-
-        .sidebar-link.active {
-          background-color: #007bff;
-          color: white;
-        }
-
+        
         .sidebar-link.active:hover {
-          background-color: #0056b3;
-          color: white;
+          background-color: #0056b3 !important;
+          color: white !important;
         }
-
+        
         .badge-sm {
-          font-size: 0.7rem;
-          padding: 0.25em 0.5em;
+          font-size: 0.75em;
+          padding: 0.25em 0.4em;
         }
-
+        
         @media (max-width: 991.98px) {
           .sidebar {
             position: fixed;
             top: 76px;
             left: 0;
             height: calc(100vh - 76px);
-            z-index: 1000;
-            overflow-y: auto;
+            z-index: 1040;
+            transform: translateX(-100%);
+            transition: transform 0.3s ease-in-out;
           }
           
-          .main-content {
-            width: 100%;
+          .sidebar:not(.d-none) {
+            transform: translateX(0);
           }
         }
       `}</style>
